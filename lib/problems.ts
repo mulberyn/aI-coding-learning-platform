@@ -1,4 +1,4 @@
-import { Difficulty, ProblemType } from "@prisma/client";
+import { Difficulty, ProblemType, SubmissionStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 export const difficultyLabel: Record<Difficulty, string> = {
@@ -42,6 +42,39 @@ export async function getProblemCatalog() {
       acceptanceRate: true,
     },
   });
+}
+
+export type UserProblemAttemptState = "UNTRIED" | "ATTEMPTED" | "SOLVED";
+
+export async function getUserProblemAttemptMap(userId?: string | null) {
+  if (!userId) {
+    return {} as Record<string, UserProblemAttemptState>;
+  }
+
+  const submissions = await prisma.submission.findMany({
+    where: { userId },
+    select: {
+      problemId: true,
+      status: true,
+    },
+  });
+
+  const attemptMap: Record<string, UserProblemAttemptState> = {};
+
+  for (const submission of submissions) {
+    const current = attemptMap[submission.problemId] ?? "UNTRIED";
+
+    if (submission.status === SubmissionStatus.ACCEPTED) {
+      attemptMap[submission.problemId] = "SOLVED";
+      continue;
+    }
+
+    if (current !== "SOLVED") {
+      attemptMap[submission.problemId] = "ATTEMPTED";
+    }
+  }
+
+  return attemptMap;
 }
 
 export async function getProblemBySlug(slug: string) {
