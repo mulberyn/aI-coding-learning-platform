@@ -45,10 +45,7 @@ int main() {
 }`;
 
   return (
-    <SiteShell
-      title={problem.title}
-      eyebrow={`题目详情、代码编辑、提交评测与 AI 辅导入口 · ${problemTypeLabel[problem.type]}`}
-    >
+    <SiteShell>
       <div className="mx-auto grid max-w-7xl gap-6 px-4 py-8 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:px-8">
         <SectionCard
           title="题目描述"

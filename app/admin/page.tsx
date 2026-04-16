@@ -18,7 +18,7 @@ const adminItems = [
 
 export default function AdminPage() {
   return (
-    <SiteShell title="Admin" eyebrow="教师与管理员控制台">
+    <SiteShell>
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         <SectionCard
           title="后台能力"

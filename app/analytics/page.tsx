@@ -18,7 +18,7 @@ const pathItems = [
 
 export default function AnalyticsPage() {
   return (
-    <SiteShell title="Analytics" eyebrow="学习画像、薄弱项分析与推荐路径">
+    <SiteShell>
       <div className="mx-auto grid max-w-7xl gap-6 px-4 py-8 sm:px-6 lg:grid-cols-[1fr_0.9fr] lg:px-8">
         <SectionCard title="学习画像" subtitle="用简单可解释的统计分析先跑通">
           <div className="space-y-3">

@@ -10,7 +10,7 @@ const topics = [
 
 export default function ForumPage() {
   return (
-    <SiteShell title="Forum" eyebrow="题目讨论、学习交流与教师答疑">
+    <SiteShell>
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         <SectionCard
           title="讨论区"

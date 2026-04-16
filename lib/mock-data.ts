@@ -24,12 +24,18 @@ export type LearningMetric = {
 };
 
 export const navItems: NavItem[] = [
-  { label: "Dashboard", href: "/dashboard", description: "学习总览与角色入口" },
-  { label: "Problems", href: "/problems", description: "题库、提交和评测" },
-  { label: "Agent", href: "/agent", description: "AI 在线辅导" },
-  { label: "Analytics", href: "/analytics", description: "学习画像与推荐" },
-  { label: "Forum", href: "/forum", description: "题目讨论与交流" },
-  { label: "Admin", href: "/admin", description: "教师与管理员控制台" },
+  { label: "首页", href: "/", description: "平台概览与核心入口" },
+  { label: "题库", href: "/problems", description: "题目浏览、筛选和收藏" },
+  {
+    label: "提交记录",
+    href: "/submissions",
+    description: "查看最近评测与结果",
+  },
+  { label: "比赛", href: "/contests", description: "练习赛与班级赛入口" },
+  { label: "论坛", href: "/forum", description: "题目讨论与交流" },
+  { label: "AI 辅导", href: "/agent", description: "分层提示与模型切换" },
+  { label: "学习分析", href: "/analytics", description: "学习画像与推荐路径" },
+  { label: "教师后台", href: "/admin", description: "教师与管理员控制台" },
 ];
 
 export const problems: Problem[] = [

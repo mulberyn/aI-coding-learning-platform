@@ -2,9 +2,9 @@ import { Difficulty, ProblemType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 export const difficultyLabel: Record<Difficulty, string> = {
-  EASY: "Easy",
-  MEDIUM: "Medium",
-  HARD: "Hard",
+  EASY: "简单",
+  MEDIUM: "普通",
+  HARD: "困难",
 };
 
 export const problemTypeLabel: Record<ProblemType, string> = {
@@ -25,6 +25,23 @@ export async function getPartitionedProblems() {
       (problem) => problem.type === ProblemType.TRADITIONAL,
     ),
   };
+}
+
+export async function getProblemCatalog() {
+  return prisma.problem.findMany({
+    orderBy: [{ createdAt: "asc" }],
+    select: {
+      id: true,
+      slug: true,
+      title: true,
+      statement: true,
+      topic: true,
+      source: true,
+      difficulty: true,
+      type: true,
+      acceptanceRate: true,
+    },
+  });
 }
 
 export async function getProblemBySlug(slug: string) {

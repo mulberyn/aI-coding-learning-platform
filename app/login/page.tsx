@@ -24,6 +24,13 @@ export default function LoginPage() {
           <p>admin@example.com / password123</p>
         </div>
 
+        <div className="mt-4 text-sm text-muted">
+          还没有账号？
+          <Link href="/register" className="ml-1 text-current hover:underline">
+            去注册
+          </Link>
+        </div>
+
         <Link
           href="/"
           className="mt-5 inline-flex text-sm text-muted hover:text-current"

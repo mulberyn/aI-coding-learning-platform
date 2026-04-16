@@ -5,10 +5,7 @@ import { roleCards } from "@/lib/mock-data";
 
 export default function DashboardPage() {
   return (
-    <SiteShell
-      title="Dashboard"
-      eyebrow="学生、教师、管理员的统一学习总览与平台入口"
-    >
+    <SiteShell>
       <div className="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
         <StatGrid />
         <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">

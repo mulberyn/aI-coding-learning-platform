@@ -22,10 +22,7 @@ const steps = [
 
 export default function AgentPage() {
   return (
-    <SiteShell
-      title="AI Tutor Agent"
-      eyebrow="在线编程辅导、分层提示与多模型适配"
-    >
+    <SiteShell>
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
           <SectionCard
