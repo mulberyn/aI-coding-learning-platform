@@ -166,7 +166,7 @@ export function ProblemSubmitPanel({
   }
 
   return (
-    <div className="space-y-4 rounded-2xl border border-ui bg-panel p-4">
+    <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
         <label className="text-sm text-muted" htmlFor="language-select">
           语言

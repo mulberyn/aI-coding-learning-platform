@@ -47,6 +47,7 @@ async function seedUsers() {
 async function seedProblems() {
   const problems = [
     {
+      problemNumber: 1,
       slug: "two-sum-rebuild",
       title: "Two Sum Rebuild",
       statement:
@@ -85,6 +86,7 @@ async function seedProblems() {
       ],
     },
     {
+      problemNumber: 2,
       slug: "longest-substring-window",
       title: "Longest Substring Window",
       statement:
@@ -117,6 +119,7 @@ async function seedProblems() {
       ],
     },
     {
+      problemNumber: 3,
       slug: "watermelon",
       title: "Watermelon",
       statement:
@@ -151,6 +154,7 @@ async function seedProblems() {
       ],
     },
     {
+      problemNumber: 4,
       slug: "next-round",
       title: "Next Round",
       statement:
@@ -193,6 +197,7 @@ async function seedProblems() {
 
     const baseData = {
       slug: item.slug,
+      problemNumber: item.problemNumber,
       title: item.title,
       statement: item.statement,
       topic: item.topic,

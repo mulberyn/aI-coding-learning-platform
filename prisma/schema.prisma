@@ -64,6 +64,7 @@ model User {
 
 model Problem {
   id                      String      @id @default(cuid())
+  problemNumber           Int?
   slug                    String      @unique
   title                   String
   statement               String
