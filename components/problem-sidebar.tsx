@@ -1,5 +1,12 @@
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+import {
+  ArrowRight,
+  SendHorizontal,
+  History,
+  GraduationCap,
+  BarChart3,
+  MessageSquare,
+} from "lucide-react";
 
 type ProblemSidebarProps = {
   problemId: string;
@@ -15,6 +22,7 @@ export function ProblemSidebar({
   const links = [
     {
       label: "提交",
+      icon: SendHorizontal,
       href: {
         pathname: "/submit",
         query: { problemSlug, problemType },
@@ -22,6 +30,7 @@ export function ProblemSidebar({
     },
     {
       label: "提交记录",
+      icon: History,
       href: {
         pathname: "/submit-history",
         query: { problemId, problemSlug },
@@ -29,6 +38,7 @@ export function ProblemSidebar({
     },
     {
       label: "学习",
+      icon: GraduationCap,
       href: {
         pathname: "/learn",
         query: { problemId, problemSlug },
@@ -36,6 +46,7 @@ export function ProblemSidebar({
     },
     {
       label: "统计",
+      icon: BarChart3,
       href: {
         pathname: "/statistics",
         query: { problemId, problemSlug },
@@ -43,6 +54,7 @@ export function ProblemSidebar({
     },
     {
       label: "讨论",
+      icon: MessageSquare,
       href: {
         pathname: "/discussion",
         query: { problemId, problemSlug },
@@ -61,7 +73,10 @@ export function ProblemSidebar({
               index !== links.length - 1 ? "border-b border-ui" : ""
             }`}
           >
-            <span>{item.label}</span>
+            <span className="flex items-center gap-2">
+              <item.icon className="h-4 w-4 text-muted" />
+              {item.label}
+            </span>
             <ArrowRight className="h-4 w-4 text-muted" />
           </Link>
         ))}

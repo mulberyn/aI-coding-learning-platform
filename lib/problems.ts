@@ -80,7 +80,28 @@ export async function getUserProblemAttemptMap(userId?: string | null) {
 export async function getProblemBySlug(slug: string) {
   return prisma.problem.findUnique({
     where: { slug },
-    include: {
+    select: {
+      id: true,
+      problemNumber: true,
+      slug: true,
+      title: true,
+      statement: true,
+      topic: true,
+      source: true,
+      difficulty: true,
+      type: true,
+      acceptanceRate: true,
+      functionName: true,
+      functionSignature: true,
+      traditionalInputFormat: true,
+      traditionalOutputFormat: true,
+      timeLimitMs: true,
+      memoryLimitMb: true,
+      _count: {
+        select: {
+          submissions: true,
+        },
+      },
       examples: {
         orderBy: { sortOrder: "asc" },
       },

@@ -20,7 +20,9 @@ export function SubmissionPanel({
   const [mode, setMode] = useState<SubmissionMode>("code");
 
   return (
-    <div className="space-y-4 rounded-xl border border-ui bg-background p-4">
+    <div className="space-y-4">
+      <div className="border-t-2 border-ui" />
+
       {/* 提交模式切换 */}
       <div className="flex gap-2">
         <button

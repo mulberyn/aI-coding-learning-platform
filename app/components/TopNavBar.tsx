@@ -56,7 +56,7 @@ function NavLink({ route, active, Icon }: NavLinkProps) {
     <Link
       href={route.href as never}
       aria-current={active ? "page" : undefined}
-      className={`group relative inline-flex h-14 items-center px-3 text-sm transition-colors duration-200 ${
+      className={`group relative inline-flex h-12 items-center px-3 text-sm transition-colors duration-200 ${
         active ? "text-current" : "text-muted hover:text-current"
       }`}
     >
@@ -103,7 +103,7 @@ function ThemeModeButton() {
     return (
       <button
         type="button"
-        className="h-10 w-10 rounded-[7px] bg-panel-strong"
+        className="h-9 w-9 rounded-[7px] bg-panel-strong"
         aria-label="主题模式加载中"
       />
     );
@@ -132,7 +132,7 @@ function ThemeModeButton() {
     <button
       type="button"
       onClick={() => setTheme(nextMode())}
-      className="inline-flex h-10 w-10 items-center justify-center rounded-[7px] bg-panel-strong text-muted transition hover:text-current"
+      className="inline-flex h-9 w-9 items-center justify-center rounded-[7px] bg-panel-strong text-muted transition hover:text-current"
       title={`当前：${titleMap[mode]}`}
       aria-label={`切换主题，当前${titleMap[mode]}`}
     >
@@ -222,16 +222,16 @@ export function TopNavBar({
         hidden ? "-translate-y-full" : "translate-y-0"
       }`}
     >
-      <div className="relative mx-auto flex h-14 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+      <div className="relative mx-auto flex h-12 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <div className="flex min-w-0 items-center">
-          <Link href="/" className="text-base font-semibold tracking-tight">
+          <Link href="/" className="text-[15px] font-semibold tracking-tight">
             AIOJ
           </Link>
         </div>
 
-        <div className="pointer-events-none absolute inset-x-0 hidden h-14 items-center justify-center md:flex">
+        <div className="pointer-events-none absolute inset-x-0 hidden h-12 items-center justify-center md:flex">
           <nav
-            className="pointer-events-auto flex h-14 items-center gap-1"
+            className="pointer-events-auto flex h-12 items-center gap-1"
             aria-label="主导航"
           >
             {routes.map((route) => {
@@ -256,13 +256,13 @@ export function TopNavBar({
             <>
               <Link
                 href="/login"
-                className="inline-flex h-10 items-center rounded-[7px] bg-[#e5e7eb] px-3.5 text-sm text-[#111827] transition hover:bg-[#d1d5db]"
+                className="inline-flex h-9 items-center rounded-[7px] bg-[#e5e7eb] px-3 text-sm text-[#111827] transition hover:bg-[#d1d5db]"
               >
                 登录
               </Link>
               <Link
                 href="/register"
-                className="inline-flex h-10 items-center rounded-[7px] bg-[#dbeafe] px-3.5 text-sm text-[#1d4ed8] transition hover:bg-[#bfdbfe]"
+                className="inline-flex h-9 items-center rounded-[7px] bg-[#dbeafe] px-3 text-sm text-[#1d4ed8] transition hover:bg-[#bfdbfe]"
               >
                 注册
               </Link>
@@ -272,7 +272,7 @@ export function TopNavBar({
               <button
                 type="button"
                 onClick={() => setMenuOpen((value) => !value)}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-[7px] bg-panel-strong text-sm font-semibold"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-[7px] bg-panel-strong text-sm font-semibold"
                 aria-haspopup="menu"
                 aria-expanded={menuOpen}
                 aria-label="打开用户菜单"
@@ -282,7 +282,7 @@ export function TopNavBar({
 
               {menuOpen ? (
                 <div
-                  className="absolute right-0 top-12 w-40 overflow-hidden rounded-[9px] bg-panel py-1 shadow-[0_8px_24px_rgba(0,0,0,0.12)] ring-1 ring-black/5 dark:ring-white/10"
+                  className="absolute right-0 top-11 w-40 overflow-hidden rounded-[9px] bg-panel py-1 shadow-[0_8px_24px_rgba(0,0,0,0.12)] ring-1 ring-black/5 dark:ring-white/10"
                   role="menu"
                 >
                   <Link

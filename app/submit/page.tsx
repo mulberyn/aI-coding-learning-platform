@@ -62,7 +62,7 @@ export default async function SubmitPage({ searchParams }: SubmitPageProps) {
         signedIn={!!session}
         userName={session?.user?.name}
       />
-      <main className="min-h-screen bg-background pt-14">
+      <main className="min-h-screen bg-background pt-12">
         <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
           <div className="mb-6 flex items-center justify-between gap-3">
             <h1 className="text-2xl font-semibold text-foreground">

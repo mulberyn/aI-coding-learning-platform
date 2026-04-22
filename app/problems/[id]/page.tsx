@@ -1,8 +1,9 @@
 import { notFound } from "next/navigation";
 import { difficultyLabel, getProblemBySlug } from "@/lib/problems";
 import { auth } from "@/auth";
-import { CopyButton } from "@/components/copy-button";
+import { CopyButton } from "../../../components/copy-button";
 import { ProblemSidebar } from "@/components/problem-sidebar";
+import { ProblemHeader } from "@/components/problem-header";
 import { TopNavBar } from "@/app/components/TopNavBar";
 import {
   BookOpen,
@@ -64,54 +65,54 @@ int main() {
         signedIn={!!session}
         userName={session?.user?.name}
       />
-      <main className="min-h-screen bg-background pt-14">
+      <main className="min-h-screen bg-background pt-12">
         {/* 顶部 */}
         <div className="border-b border-ui bg-background">
           <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex-1">
-                <div className="flex items-center gap-3">
-                  <h1 className="text-3xl font-bold text-foreground">
-                    {problem.problemNumber}. {problem.title}
-                  </h1>
-                  <button
-                    className="mt-1 rounded-lg border border-ui bg-background p-2 text-muted hover:bg-panel-strong transition-colors"
-                    title="收藏题目"
-                  >
-                    <svg
-                      className="h-5 w-5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M5 5a2 2 0 012-2h6a2 2 0 012 2v12a1 1 0 01-1 1H6a1 1 0 01-1-1V5z"
-                      />
-                    </svg>
-                  </button>
+            <div className="flex items-start justify-between gap-6">
+              <ProblemHeader
+                problemId={problem.id}
+                problemNumber={problem.problemNumber}
+                title={problem.title}
+                topic={problem.topic}
+                source={problem.source}
+                userId={session?.user?.id}
+              />
+              <div className="mt-2 flex shrink-0 items-stretch self-end text-center text-sm text-muted">
+                <div className="flex min-w-[50px] flex-col items-center justify-center px-3 pt-1">
+                  <span className="text-xs font-medium tracking-wide text-muted text-center">
+                    提交
+                  </span>
+                  <span className="mt-1 text-sm font-medium leading-none text-foreground text-center">
+                    {problem._count?.submissions ?? 0}
+                  </span>
                 </div>
-              </div>
-              <div className="text-right text-sm text-muted space-y-1">
-                <div>
-                  提交人数:{" "}
-                  <span className="text-foreground font-medium">-</span>
-                </div>
-                <div>
-                  通过率:{" "}
-                  <span className="text-foreground font-medium">
+                <div className="w-[2px] self-stretch bg-zinc-400/80 dark:bg-zinc-500/90" />
+                <div className="flex min-w-[50px] flex-col items-center justify-center px-3 pt-1">
+                  <span className="text-xs font-medium tracking-wide text-muted text-center">
+                    通过
+                  </span>
+                  <span className="mt-1 text-sm font-medium leading-none text-foreground text-center">
                     {problem.acceptanceRate || 0}%
                   </span>
                 </div>
-                <div>
-                  时间限制:{" "}
-                  <span className="text-foreground font-medium">1s</span>
+                <div className="w-[2px] self-stretch bg-zinc-400/80 dark:bg-zinc-500/90" />
+                <div className="flex min-w-[50px] flex-col items-center justify-center px-3 pt-1">
+                  <span className="text-xs font-medium tracking-wide text-muted text-center">
+                    时间限制
+                  </span>
+                  <span className="mt-1 text-sm font-medium leading-none text-foreground text-center">
+                    1s
+                  </span>
                 </div>
-                <div>
-                  空间限制:{" "}
-                  <span className="text-foreground font-medium">256MB</span>
+                <div className="w-[2px] self-stretch bg-zinc-400/80 dark:bg-zinc-500/90" />
+                <div className="flex min-w-[50px] flex-col items-center justify-center pl-3 pt-1">
+                  <span className="text-xs font-medium tracking-wide text-muted text-center">
+                    空间限制
+                  </span>
+                  <span className="mt-1 text-sm font-medium leading-none text-foreground text-center">
+                    256MB
+                  </span>
                 </div>
               </div>
             </div>
@@ -119,7 +120,7 @@ int main() {
         </div>
 
         {/* 主体内容 */}
-        <div className="mx-auto grid max-w-7xl gap-8 px-4 py-8 sm:px-6 lg:grid-cols-[1fr_420px] lg:px-8">
+        <div className="mx-auto grid max-w-7xl gap-8 px-4 py-8 sm:px-6 lg:grid-cols-[1fr_250px] lg:px-8">
           {/* 左侧：题目描述 */}
           <div className="space-y-8">
             {/* 题目描述 */}
