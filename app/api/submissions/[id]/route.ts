@@ -68,6 +68,7 @@ export async function GET(_request: Request, { params }: Params) {
     score: submission.score,
     message: submission.message,
     language: submission.language,
+    sourceCode: submission.sourceCode,
     startedAt: submission.startedAt,
     finishedAt: submission.finishedAt,
     createdAt: submission.createdAt,

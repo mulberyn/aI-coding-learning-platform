@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { TopNavBar } from "@/app/components/TopNavBar";
 import { SubmissionPanel } from "@/components/submission-panel";
 import { getProblemBySlug } from "@/lib/problems";
+import { prisma } from "@/lib/prisma";
 
 type SubmitPageProps = {
   searchParams: Promise<{
@@ -45,7 +46,23 @@ export default async function SubmitPage({ searchParams }: SubmitPageProps) {
   const resolvedType =
     problem?.type ??
     (problemType === "FUNCTIONAL" ? "FUNCTIONAL" : "TRADITIONAL");
-  const defaultCode = buildDefaultCode(resolvedType);
+
+  const latestSubmission =
+    session?.user?.id && problem
+      ? await prisma.submission.findFirst({
+          where: {
+            userId: session.user.id,
+            problemId: problem.id,
+          },
+          orderBy: { createdAt: "desc" },
+          select: {
+            sourceCode: true,
+          },
+        })
+      : null;
+
+  const defaultCode =
+    latestSubmission?.sourceCode?.trim() || buildDefaultCode(resolvedType);
 
   const routes = [
     { href: "/", label: "首页" },

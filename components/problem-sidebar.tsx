@@ -32,8 +32,8 @@ export function ProblemSidebar({
       label: "提交记录",
       icon: History,
       href: {
-        pathname: "/submit-history",
-        query: { problemId, problemSlug },
+        pathname: "/submissions",
+        query: { problem: problemSlug, problemSlug },
       },
     },
     {

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
 import { Check, ChevronDown } from "lucide-react";
@@ -903,9 +904,12 @@ export function ProblemSubmitPanel({
       {submission ? (
         <div className="space-y-3 rounded-2xl border border-ui bg-panel-strong p-4">
           <div className="flex flex-wrap items-center gap-3 text-sm">
-            <span className="rounded-full border border-ui px-3 py-1">
-              状态: {statusText(submission.status)}
-            </span>
+            <Link
+              href={`/submissions/${submission.id}`}
+              className="rounded-full border border-ui px-3 py-1 hover:bg-panel"
+            >
+              状态: {statusText(submission.status)}（点击查看源码）
+            </Link>
             <span className="rounded-full border border-ui px-3 py-1">
               得分: {submission.score}
             </span>
