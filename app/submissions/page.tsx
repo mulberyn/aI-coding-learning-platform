@@ -180,6 +180,7 @@ export default async function SubmissionsPage({
   const submitterKeyword = params.submitter?.trim() ?? "";
   const languageKeyword = params.language?.trim() ?? "";
   const statusKeyword = params.status?.trim() ?? "";
+  const sourceProblemSlug = params.problemSlug?.trim() ?? "";
   const mineOnly = params.mine === "1" && Boolean(session?.user?.id);
   const problemKeywordNumber = Number.parseInt(problemKeyword, 10);
   const isProblemNumber = !Number.isNaN(problemKeywordNumber);
@@ -245,8 +246,12 @@ export default async function SubmissionsPage({
         <form
           action="/submissions"
           method="get"
-          className="mb-4 grid gap-3 lg:grid-cols-[repeat(4,minmax(0,1fr))_auto_auto]"
+          className="mb-4 grid gap-3 lg:grid-cols-[repeat(4,minmax(0,1fr))_auto_auto_auto]"
         >
+          {sourceProblemSlug ? (
+            <input type="hidden" name="problemSlug" value={sourceProblemSlug} />
+          ) : null}
+
           <input
             name="problem"
             defaultValue={problemKeyword}
@@ -293,6 +298,15 @@ export default async function SubmissionsPage({
           >
             <UserRound className="h-4 w-4" aria-hidden />
           </button>
+
+          {sourceProblemSlug ? (
+            <Link
+              href={`/problems/${sourceProblemSlug}`}
+              className="inline-flex h-10 items-center justify-center rounded-md border border-ui bg-panel px-3 text-sm font-medium text-foreground transition hover:bg-panel-strong"
+            >
+              返回题目
+            </Link>
+          ) : null}
         </form>
 
         <div className="overflow-x-auto">

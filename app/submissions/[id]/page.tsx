@@ -1,7 +1,18 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { AlertCircle, CheckCircle2, Clock3, XCircle } from "lucide-react";
-import type { SubmissionLanguage, SubmissionStatus } from "@prisma/client";
+import {
+  AlertCircle,
+  CheckCircle2,
+  Clock3,
+  XCircle,
+  Check,
+  X,
+} from "lucide-react";
+import type {
+  SubmissionLanguage,
+  SubmissionStatus,
+  JudgeResultStatus,
+} from "@prisma/client";
 import { SiteShell } from "@/components/site-shell";
 import { prisma } from "@/lib/prisma";
 
@@ -95,6 +106,25 @@ function formatRuntime(timeSecList: Array<number | null>) {
   }
 
   return `${(maxMs / 1000).toFixed(2)} s`;
+}
+
+function getJudgeResultIcon(
+  status: JudgeResultStatus,
+  judge0StatusId: number | null,
+) {
+  if (status === "PENDING") {
+    return <Clock3 className="h-4 w-4 text-amber-500" />;
+  }
+  if (status === "PASSED") {
+    return <Check className="h-4 w-4 text-emerald-600" />;
+  }
+  if (
+    judge0StatusId !== null &&
+    [7, 8, 9, 10, 11, 12].includes(judge0StatusId)
+  ) {
+    return <X className="h-4 w-4 text-purple-600" />;
+  }
+  return <X className="h-4 w-4 text-rose-600" />;
 }
 
 function formatMemory(memoryKbList: Array<number | null>) {
@@ -264,8 +294,21 @@ export default async function SubmissionDetailPage({
       },
       judgeResults: {
         select: {
+          id: true,
+          status: true,
+          judge0StatusId: true,
           timeSec: true,
           memoryKb: true,
+          testCase: {
+            select: {
+              sortOrder: true,
+            },
+          },
+        },
+        orderBy: {
+          testCase: {
+            sortOrder: "asc",
+          },
         },
       },
     },
@@ -373,6 +416,53 @@ export default async function SubmissionDetailPage({
             <code dangerouslySetInnerHTML={{ __html: codeHtml || " " }} />
           </pre>
         </section>
+
+        {submission.judgeResults.length > 0 && (
+          <section className="mt-5 overflow-hidden rounded-md border border-ui bg-panel">
+            <header className="border-b border-ui bg-panel-strong px-4 py-2 text-sm font-medium">
+              评测结果
+            </header>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-[var(--border)] text-sm">
+                <thead className="bg-panel">
+                  <tr>
+                    <th className="px-4 py-2 text-left">测试点</th>
+                    <th className="px-4 py-2 text-left">状态</th>
+                    <th className="px-4 py-2 text-left">用时</th>
+                    <th className="px-4 py-2 text-left">内存</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[var(--border)] bg-panel-strong">
+                  {submission.judgeResults.map((result) => (
+                    <tr key={result.id}>
+                      <td className="px-4 py-2">
+                        #{result.testCase.sortOrder + 1}
+                      </td>
+                      <td className="px-4 py-2">
+                        <div className="flex items-center">
+                          {getJudgeResultIcon(
+                            result.status,
+                            result.judge0StatusId,
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-2">
+                        {result.timeSec !== null
+                          ? `${(result.timeSec * 1000).toFixed(0)} ms`
+                          : "-"}
+                      </td>
+                      <td className="px-4 py-2">
+                        {result.memoryKb !== null
+                          ? `${result.memoryKb} KB`
+                          : "-"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
       </div>
     </SiteShell>
   );

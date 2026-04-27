@@ -1,7 +1,134 @@
 import bcrypt from "bcryptjs";
+import { promises as fs } from "node:fs";
+import path from "node:path";
 import { Difficulty, PrismaClient, ProblemType, Role } from "@prisma/client";
 
 const prisma = new PrismaClient();
+
+type ProblemMeta = {
+  problemNumber: number;
+  slug: string;
+  title: string;
+  topic: string;
+  source: string;
+  difficulty: Difficulty;
+  type: ProblemType;
+  acceptanceRate: number;
+};
+
+type ProblemCaseConfig = {
+  slug: string;
+  title: string;
+  desc: string;
+  inFmt: string;
+  outFmt: string;
+  range: string;
+  sampleIn: string;
+  sampleOut: string;
+  sampleExp: string;
+  hiddenIn: string;
+  hiddenOut: string;
+};
+
+const problemTitles = [
+  "相邻对求和",
+  "前缀峰值",
+  "偶数拆分",
+  "窗口得分",
+  "去重计数",
+  "数位折叠",
+  "括号通道",
+  "动态中位数",
+  "资源队列",
+  "山脉行走",
+  "交通信号",
+  "旋转轨迹",
+  "最近更高者",
+  "奇偶归并",
+  "区间计数",
+  "有序合并",
+  "最短窗口计数",
+  "惰性求和",
+  "资源背包",
+  "稳定分桶",
+  "服务负载",
+  "镜像单词",
+  "预算路径",
+  "分数提升",
+  "班次报告",
+  "字符预算",
+  "路径接力",
+  "颜色均值",
+  "双端队列顺序",
+  "最终账本",
+];
+
+const topics = [
+  "数组",
+  "前缀和",
+  "数学",
+  "滑动窗口",
+  "哈希表",
+  "模拟",
+  "栈",
+  "数据结构",
+  "队列",
+  "差分",
+  "区间",
+  "旋转",
+  "单调栈",
+  "排序",
+  "数位统计",
+  "双指针",
+  "字符串",
+  "统计",
+  "动态规划",
+  "分桶",
+  "事件扫描",
+  "字符串",
+  "图论",
+  "前缀最大值",
+  "区间合并",
+  "计数",
+  "树",
+  "数学",
+  "双端队列",
+  "综合",
+];
+
+const difficulties = [Difficulty.EASY, Difficulty.MEDIUM, Difficulty.HARD];
+
+const problemMetas: ProblemMeta[] = Array.from({ length: 30 }).map((_, idx) => {
+  const number = idx + 1;
+  const slug = `P${String(number).padStart(4, "0")}`;
+  return {
+    problemNumber: number,
+    slug,
+    title: problemTitles[idx],
+    topic: topics[idx],
+    source: "题库精选",
+    difficulty: difficulties[idx % difficulties.length],
+    type: idx % 2 === 0 ? ProblemType.TRADITIONAL : ProblemType.FUNCTIONAL,
+    acceptanceRate: Number((0.35 + (idx % 10) * 0.05).toFixed(2)),
+  };
+});
+
+function statementFilePath(slug: string) {
+  return path.join(process.cwd(), "prisma", "problem-statements", `${slug}.md`);
+}
+
+async function loadMarkdownStatement(slug: string) {
+  const filePath = statementFilePath(slug);
+  const markdown = await fs.readFile(filePath, "utf8");
+  return markdown.trim();
+}
+
+async function loadProblemCaseMap() {
+  const filePath = path.join(process.cwd(), "prisma", "problem-cases.json");
+  const raw = await fs.readFile(filePath, "utf8");
+  const parsed = JSON.parse(raw) as ProblemCaseConfig[];
+  return new Map(parsed.map((item) => [item.slug, item]));
+}
 
 async function seedUsers() {
   const users = [
@@ -44,209 +171,74 @@ async function seedUsers() {
   }
 }
 
-async function seedProblems() {
-  const problems = [
+function makeExamples(config: ProblemCaseConfig) {
+  return [
     {
-      problemNumber: 1,
-      slug: "two-sum-rebuild",
-      title: "Two Sum Rebuild",
-      statement:
-        "给定整数数组 nums 和整数 target，返回任意两个下标，使得 nums[i] + nums[j] == target。",
-      topic: "数组 / 哈希表",
-      source: "基础训练",
-      difficulty: Difficulty.EASY,
-      type: ProblemType.FUNCTIONAL,
-      acceptanceRate: 0.89,
-      functionName: "twoSum",
-      functionSignature:
-        "function twoSum(nums: number[], target: number): number[]",
-      examples: [
-        {
-          input: "nums = [2,7,11,15], target = 9",
-          output: "[0,1]",
-          explanation: "nums[0] + nums[1] = 9",
-        },
-        {
-          input: "nums = [3,2,4], target = 6",
-          output: "[1,2]",
-          explanation: "nums[1] + nums[2] = 6",
-        },
-      ],
-      testCases: [
-        {
-          input: "4 9\n2 7 11 15",
-          expectedOutput: "0 1",
-          isSample: true,
-        },
-        {
-          input: "3 6\n3 2 4",
-          expectedOutput: "1 2",
-          isSample: true,
-        },
-      ],
-    },
-    {
-      problemNumber: 2,
-      slug: "longest-substring-window",
-      title: "Longest Substring Window",
-      statement:
-        "给定字符串 s，找到不含重复字符的最长子串长度，要求时间复杂度尽量优化。",
-      topic: "滑动窗口",
-      source: "核心路径",
-      difficulty: Difficulty.MEDIUM,
-      type: ProblemType.FUNCTIONAL,
-      acceptanceRate: 0.63,
-      functionName: "lengthOfLongestSubstring",
-      functionSignature: "function lengthOfLongestSubstring(s: string): number",
-      examples: [
-        {
-          input: 's = "abcabcbb"',
-          output: "3",
-          explanation: "最长子串是 abc",
-        },
-      ],
-      testCases: [
-        {
-          input: "abcabcbb",
-          expectedOutput: "3",
-          isSample: true,
-        },
-        {
-          input: "bbbbb",
-          expectedOutput: "1",
-          isSample: true,
-        },
-      ],
-    },
-    {
-      problemNumber: 3,
-      slug: "watermelon",
-      title: "Watermelon",
-      statement:
-        "给定一个整数 w，判断是否可以把它分成两个正偶数的和。输出 YES 或 NO。",
-      topic: "实现",
-      source: "CF 风格入门",
-      difficulty: Difficulty.EASY,
-      type: ProblemType.TRADITIONAL,
-      acceptanceRate: 0.92,
-      traditionalInputFormat: "一行一个整数 w (1 <= w <= 100)",
-      traditionalOutputFormat: "若可拆分输出 YES，否则输出 NO",
-      timeLimitMs: 1000,
-      memoryLimitMb: 256,
-      examples: [
-        {
-          input: "8",
-          output: "YES",
-          explanation: "8 = 4 + 4",
-        },
-      ],
-      testCases: [
-        {
-          input: "8",
-          expectedOutput: "YES",
-          isSample: true,
-        },
-        {
-          input: "5",
-          expectedOutput: "NO",
-          isSample: true,
-        },
-      ],
-    },
-    {
-      problemNumber: 4,
-      slug: "next-round",
-      title: "Next Round",
-      statement:
-        "给定 n 名选手得分和名次线 k，统计晋级人数。分数为 0 的选手不能晋级。",
-      topic: "数组",
-      source: "CF 风格基础",
-      difficulty: Difficulty.MEDIUM,
-      type: ProblemType.TRADITIONAL,
-      acceptanceRate: 0.75,
-      traditionalInputFormat: "第一行两个整数 n k，第二行 n 个非负整数表示成绩",
-      traditionalOutputFormat: "输出一个整数，表示晋级人数",
-      timeLimitMs: 1000,
-      memoryLimitMb: 256,
-      examples: [
-        {
-          input: "8 5\n10 9 8 7 7 7 5 5",
-          output: "6",
-          explanation: "前 6 名成绩至少为 7 且 > 0",
-        },
-      ],
-      testCases: [
-        {
-          input: "8 5\n10 9 8 7 7 7 5 5",
-          expectedOutput: "6",
-          isSample: true,
-        },
-        {
-          input: "4 2\n0 0 0 0",
-          expectedOutput: "0",
-          isSample: true,
-        },
-      ],
+      input: config.sampleIn,
+      output: config.sampleOut,
+      explanation: config.sampleExp,
     },
   ];
+}
 
-  for (const item of problems) {
-    const existing = await prisma.problem.findUnique({
-      where: { slug: item.slug },
-    });
+function makeTestCases(config: ProblemCaseConfig) {
+  return [
+    {
+      input: config.sampleIn,
+      expectedOutput: config.sampleOut,
+      isSample: true,
+    },
+    {
+      input: config.hiddenIn,
+      expectedOutput: config.hiddenOut,
+      isSample: false,
+    },
+  ];
+}
 
-    const baseData = {
-      slug: item.slug,
-      problemNumber: item.problemNumber,
-      title: item.title,
-      statement: item.statement,
-      topic: item.topic,
-      source: item.source,
-      difficulty: item.difficulty,
-      type: item.type,
-      acceptanceRate: item.acceptanceRate,
-      functionName: item.functionName,
-      functionSignature: item.functionSignature,
-      traditionalInputFormat: item.traditionalInputFormat,
-      traditionalOutputFormat: item.traditionalOutputFormat,
-      timeLimitMs: item.timeLimitMs,
-      memoryLimitMb: item.memoryLimitMb,
-    };
+async function seedProblems() {
+  const caseMap = await loadProblemCaseMap();
 
-    if (existing) {
-      await prisma.problem.update({
-        where: { id: existing.id },
-        data: baseData,
-      });
-      await prisma.example.deleteMany({ where: { problemId: existing.id } });
-      await prisma.testCase.deleteMany({ where: { problemId: existing.id } });
-      await prisma.example.createMany({
-        data: item.examples.map((example, index) => ({
-          problemId: existing.id,
-          input: example.input,
-          output: example.output,
-          explanation: example.explanation,
-          sortOrder: index,
-        })),
-      });
-      await prisma.testCase.createMany({
-        data: item.testCases.map((testCase, index) => ({
-          problemId: existing.id,
-          input: testCase.input,
-          expectedOutput: testCase.expectedOutput,
-          isSample: testCase.isSample,
-          sortOrder: index,
-          points: 1,
-        })),
-      });
-      continue;
+  await prisma.judgeResult.deleteMany();
+  await prisma.submission.deleteMany();
+  await prisma.testCase.deleteMany();
+  await prisma.example.deleteMany();
+  await prisma.problem.deleteMany();
+
+  for (const item of problemMetas) {
+    const caseConfig = caseMap.get(item.slug);
+    if (!caseConfig) {
+      throw new Error(`Missing problem case config for ${item.slug}`);
     }
+
+    const statement = await loadMarkdownStatement(item.slug);
+    const examples = makeExamples(caseConfig);
+    const testCases = makeTestCases(caseConfig);
 
     await prisma.problem.create({
       data: {
-        ...baseData,
+        slug: item.slug,
+        problemNumber: item.problemNumber,
+        title: item.title,
+        statement,
+        topic: item.topic,
+        source: item.source,
+        difficulty: item.difficulty,
+        type: item.type,
+        acceptanceRate: item.acceptanceRate,
+        functionName: item.type === ProblemType.FUNCTIONAL ? "solve" : null,
+        functionSignature:
+          item.type === ProblemType.FUNCTIONAL
+            ? "function solve(input: string): string"
+            : null,
+        traditionalInputFormat:
+          item.type === ProblemType.TRADITIONAL ? caseConfig.inFmt : null,
+        traditionalOutputFormat:
+          item.type === ProblemType.TRADITIONAL ? caseConfig.outFmt : null,
+        timeLimitMs: 1000,
+        memoryLimitMb: 256,
         examples: {
-          create: item.examples.map((example, index) => ({
+          create: examples.map((example, index) => ({
             input: example.input,
             output: example.output,
             explanation: example.explanation,
@@ -254,7 +246,7 @@ async function seedProblems() {
           })),
         },
         testCases: {
-          create: item.testCases.map((testCase, index) => ({
+          create: testCases.map((testCase, index) => ({
             input: testCase.input,
             expectedOutput: testCase.expectedOutput,
             isSample: testCase.isSample,

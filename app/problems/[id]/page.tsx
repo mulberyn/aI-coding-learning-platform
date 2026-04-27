@@ -17,6 +17,40 @@ type ProblemPageProps = {
   params: Promise<{ id: string }>;
 };
 
+type StatementSections = {
+  description: string;
+  inputFormat: string | null;
+  outputFormat: string | null;
+  dataRange: string | null;
+};
+
+function parseStatementSections(statement: string): StatementSections {
+  const cleaned = statement.replace(/\r\n?/g, "\n").trim();
+  const getSection = (name: string) => {
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const regex = new RegExp(
+      `(?:^|\\n)##\\s*${escaped}\\s*\\n([\\s\\S]*?)(?=\\n##\\s|$)`,
+      "m",
+    );
+    const matched = cleaned.match(regex);
+    return matched?.[1]?.trim() || null;
+  };
+
+  const description =
+    getSection("题目描述") ||
+    cleaned
+      .replace(/^#.*$/gm, "")
+      .replace(/^##.*$/gm, "")
+      .trim();
+
+  return {
+    description,
+    inputFormat: getSection("输入格式"),
+    outputFormat: getSection("输出格式"),
+    dataRange: getSection("数据范围"),
+  };
+}
+
 export default async function ProblemDetailPage({ params }: ProblemPageProps) {
   const session = await auth();
   const { id } = await params;
@@ -27,6 +61,14 @@ export default async function ProblemDetailPage({ params }: ProblemPageProps) {
   }
 
   const difficulty = difficultyLabel[problem.difficulty];
+  const statementSections = parseStatementSections(problem.statement);
+  const displayInputFormat =
+    statementSections.inputFormat || problem.traditionalInputFormat;
+  const displayOutputFormat =
+    statementSections.outputFormat || problem.traditionalOutputFormat;
+  const displayDataRange =
+    statementSections.dataRange ||
+    `时间限制: ${problem.timeLimitMs ? `${problem.timeLimitMs} ms` : "1s"}\n空间限制: ${problem.memoryLimitMb ? `${problem.memoryLimitMb} MB` : "256MB"}`;
   const defaultCode =
     problem.type === "FUNCTIONAL"
       ? `#include <bits/stdc++.h>
@@ -132,12 +174,12 @@ int main() {
                 </h2>
               </div>
               <p className="text-muted leading-7 whitespace-pre-wrap">
-                {problem.statement}
+                {statementSections.description}
               </p>
             </section>
 
             {/* 输入格式 */}
-            {problem.type === "TRADITIONAL" && (
+            {problem.type === "TRADITIONAL" && displayInputFormat && (
               <section>
                 <div className="flex items-center gap-2 mb-4">
                   <ArrowLeft className="h-5 w-5 text-foreground" />
@@ -146,13 +188,13 @@ int main() {
                   </h2>
                 </div>
                 <p className="text-muted leading-7 whitespace-pre-wrap">
-                  {problem.traditionalInputFormat}
+                  {displayInputFormat}
                 </p>
               </section>
             )}
 
             {/* 输出格式 */}
-            {problem.type === "TRADITIONAL" && (
+            {problem.type === "TRADITIONAL" && displayOutputFormat && (
               <section>
                 <div className="flex items-center gap-2 mb-4">
                   <ArrowRight className="h-5 w-5 text-foreground" />
@@ -161,7 +203,7 @@ int main() {
                   </h2>
                 </div>
                 <p className="text-muted leading-7 whitespace-pre-wrap">
-                  {problem.traditionalOutputFormat}
+                  {displayOutputFormat}
                 </p>
               </section>
             )}
@@ -250,8 +292,8 @@ int main() {
                   数据范围
                 </h2>
               </div>
-              <p className="text-muted leading-7">
-                相关的数据范围信息将在此显示
+              <p className="text-muted leading-7 whitespace-pre-wrap">
+                {displayDataRange}
               </p>
             </section>
           </div>

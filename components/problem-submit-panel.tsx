@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
-import { Check, ChevronDown } from "lucide-react";
+import { Check, ChevronDown, Clock3, X } from "lucide-react";
 
 type SubmissionStatus =
   | "QUEUED"
@@ -429,6 +429,22 @@ function statusText(status: SubmissionStatus) {
     default:
       return "评测异常";
   }
+}
+
+function getJudgeResultIcon(status: string, judge0StatusId: number | null) {
+  if (status === "PENDING") {
+    return <Clock3 className="h-4 w-4 text-amber-500" />;
+  }
+  if (status === "PASSED") {
+    return <Check className="h-4 w-4 text-emerald-600" />;
+  }
+  if (
+    judge0StatusId !== null &&
+    [7, 8, 9, 10, 11, 12].includes(judge0StatusId)
+  ) {
+    return <X className="h-4 w-4 text-purple-600" />;
+  }
+  return <X className="h-4 w-4 text-rose-600" />;
 }
 
 export function ProblemSubmitPanel({
@@ -902,45 +918,60 @@ export function ProblemSubmitPanel({
       </div>
 
       {submission ? (
-        <div className="space-y-3 rounded-2xl border border-ui bg-panel-strong p-4">
+        <div className="space-y-3 rounded-md border border-ui bg-panel p-4">
           <div className="flex flex-wrap items-center gap-3 text-sm">
             <Link
               href={`/submissions/${submission.id}`}
-              className="rounded-full border border-ui px-3 py-1 hover:bg-panel"
+              className="rounded-md border border-ui bg-panel-strong px-3 py-1 hover:bg-ui transition"
             >
               状态: {statusText(submission.status)}（点击查看源码）
             </Link>
-            <span className="rounded-full border border-ui px-3 py-1">
+            <span className="rounded-md border border-ui bg-panel-strong px-3 py-1">
               得分: {submission.score}
             </span>
-            <span className="rounded-full border border-ui px-3 py-1">
+            <span className="rounded-md border border-ui bg-panel-strong px-3 py-1">
               通过: {samplePassed}/{submission.judgeResults.length}
             </span>
           </div>
 
           {submission.message ? (
-            <p className="text-sm text-muted">{submission.message}</p>
+            <p className="text-sm text-muted bg-panel-strong border border-ui p-2 rounded-md">
+              {submission.message}
+            </p>
           ) : null}
 
-          <div className="overflow-x-auto rounded-xl border border-ui">
+          <div className="overflow-x-auto rounded-md border border-ui">
             <table className="min-w-full divide-y divide-[var(--border)] text-sm">
-              <thead className="bg-panel">
+              <thead className="bg-panel-strong">
                 <tr>
-                  <th className="px-3 py-2 text-left">用例</th>
-                  <th className="px-3 py-2 text-left">状态</th>
-                  <th className="px-3 py-2 text-left">耗时</th>
-                  <th className="px-3 py-2 text-left">内存</th>
+                  <th className="px-4 py-2 text-left">测试点</th>
+                  <th className="px-4 py-2 text-left">状态</th>
+                  <th className="px-4 py-2 text-left">耗时</th>
+                  <th className="px-4 py-2 text-left">内存</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[var(--border)] bg-panel-strong">
+              <tbody className="divide-y divide-[var(--border)] bg-panel">
                 {submission.judgeResults.map((result) => (
                   <tr key={result.id}>
-                    <td className="px-3 py-2">
+                    <td className="px-4 py-2">
                       #{result.testCase.sortOrder + 1}
                     </td>
-                    <td className="px-3 py-2">{result.status}</td>
-                    <td className="px-3 py-2">{result.timeSec ?? "-"}</td>
-                    <td className="px-3 py-2">{result.memoryKb ?? "-"}</td>
+                    <td className="px-4 py-2">
+                      <div className="flex items-center">
+                        {getJudgeResultIcon(
+                          result.status,
+                          result.judge0StatusId,
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-2">
+                      {result.timeSec !== null
+                        ? `${(result.timeSec * 1000).toFixed(0)} ms`
+                        : "-"}
+                    </td>
+                    <td className="px-4 py-2">
+                      {result.memoryKb !== null ? `${result.memoryKb} KB` : "-"}
+                    </td>
                   </tr>
                 ))}
               </tbody>
