@@ -31,6 +31,7 @@ type NavLinkProps = {
 type TopNavBarProps = {
   routes: RouteItem[];
   signedIn: boolean;
+  userId?: string;
   userName?: string | null;
   onSignOut?: (formData: FormData) => Promise<void>;
 };
@@ -163,6 +164,7 @@ function getUserInitial(name?: string | null) {
 export function TopNavBar({
   routes,
   signedIn,
+  userId,
   userName,
   onSignOut,
 }: TopNavBarProps) {
@@ -171,9 +173,9 @@ export function TopNavBar({
   const [hidden, setHidden] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
-  const activeHref =
-    routes.find((route) => isRouteActive(route.href, pathname))?.href ??
-    routes[0]?.href;
+  const activeHref = routes.find((route) =>
+    isRouteActive(route.href, pathname),
+  )?.href;
 
   useEffect(() => {
     let lastScrollY = window.scrollY;
@@ -286,7 +288,7 @@ export function TopNavBar({
                   role="menu"
                 >
                   <Link
-                    href="/dashboard"
+                    href={userId ? `/users/${userId}` : "/dashboard"}
                     className="block px-3 py-2 text-sm text-muted transition hover:bg-panel-strong hover:text-current"
                     role="menuitem"
                     onClick={() => setMenuOpen(false)}

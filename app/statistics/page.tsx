@@ -11,7 +11,7 @@ export default async function StatisticsPage({
 
   return (
     <main className="min-h-screen bg-background">
-      <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
         <h1 className="text-2xl font-semibold text-foreground">统计</h1>
         <p className="mt-3 text-muted">
           该页面已预留为独立界面，后续可接入通过率、运行时分布等统计信息。

@@ -28,6 +28,7 @@ export async function SiteShell({
       <TopNavBar
         routes={appRoutes}
         signedIn={Boolean(session?.user)}
+        userId={session?.user?.id}
         userName={session?.user?.name}
         onSignOut={session?.user ? handleSignOut : undefined}
       />
