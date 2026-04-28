@@ -57,6 +57,11 @@ model User {
   name         String
   role         Role     @default(STUDENT)
   passwordHash String
+  aiProvider   String   @default("deepseek")
+  aiModel      String   @default("deepseek-chat")
+  aiApiKey     String?
+  aiWeeklySummary String?
+  aiWeeklySummaryUpdatedAt DateTime?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   submissions  Submission[]

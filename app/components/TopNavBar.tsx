@@ -296,7 +296,7 @@ export function TopNavBar({
                     个人中心
                   </Link>
                   <Link
-                    href="/dashboard"
+                    href={userId ? `/users/${userId}/settings` : "/dashboard"}
                     className="block px-3 py-2 text-sm text-muted transition hover:bg-panel-strong hover:text-current"
                     role="menuitem"
                     onClick={() => setMenuOpen(false)}

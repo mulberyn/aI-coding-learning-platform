@@ -1,9 +1,18 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { SiteShell } from "@/components/site-shell";
+import { HeatmapSection } from "./heatmap-section";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
-import { BarChart3, BrainCircuit, Flame, Target, Trophy } from "lucide-react";
+import {
+  BarChart3,
+  BrainCircuit,
+  Flame,
+  RefreshCw,
+  Target,
+  Trophy,
+} from "lucide-react";
+import { refreshWeeklyAiSummary } from "./actions";
 
 type UserProfilePageProps = {
   params: Promise<{ id: string }>;
@@ -98,6 +107,20 @@ function countWeakModulesByWindow(
   ).length;
 }
 
+function buildFallbackAiSummary(params: {
+  solvedCount: number;
+  weakModuleText: string;
+  weakModulesLength: number;
+}) {
+  const { solvedCount, weakModuleText, weakModulesLength } = params;
+
+  return `本周你保持了稳定的提交节奏，累计通过题目 ${solvedCount} 道。${
+    weakModulesLength > 0
+      ? `建议继续补强 ${weakModuleText}，优先做同类题来提升稳定性。`
+      : "当前没有明显短板，可以开始尝试更高难度的综合题。"
+  }`;
+}
+
 export default async function UserProfilePage({
   params,
 }: UserProfilePageProps) {
@@ -111,6 +134,10 @@ export default async function UserProfilePage({
       name: true,
       email: true,
       createdAt: true,
+      aiProvider: true,
+      aiModel: true,
+      aiWeeklySummary: true,
+      aiWeeklySummaryUpdatedAt: true,
       _count: {
         select: {
           submissions: true,
@@ -142,7 +169,7 @@ export default async function UserProfilePage({
   }
 
   const allSubmissions = user.submissions;
-  const recentSubmissions = allSubmissions.slice(0, 20);
+  const recentSubmissions = allSubmissions.slice(0, 4);
   const isOwner = session?.user?.id === id;
 
   const solvedMap = new Map<
@@ -209,6 +236,16 @@ export default async function UserProfilePage({
     weakModules.length > 0
       ? weakModules.map((item) => item.topic).join("、")
       : "暂无明显薄弱模块";
+  const aiSummary =
+    user.aiWeeklySummary?.trim() ||
+    buildFallbackAiSummary({
+      solvedCount,
+      weakModuleText,
+      weakModulesLength: weakModules.length,
+    });
+  const aiSummaryUpdatedText = user.aiWeeklySummaryUpdatedAt
+    ? formatDateTime(user.aiWeeklySummaryUpdatedAt)
+    : "尚未刷新";
 
   const acceptedCount = allSubmissions.filter(
     (submission) => submission.status === "ACCEPTED",
@@ -218,7 +255,8 @@ export default async function UserProfilePage({
 
   const today = new Date();
   const heatDays: Array<{ dayKey: string; date: Date; count: number }> = [];
-  for (let i = 83; i >= 0; i -= 1) {
+  // 展示最近 1 年（365 天），从最旧到最近排列，右侧为最近时间
+  for (let i = 364; i >= 0; i -= 1) {
     const day = new Date(today);
     day.setDate(today.getDate() - i);
     const dayKey = formatDateOnly(day);
@@ -236,11 +274,38 @@ export default async function UserProfilePage({
     heatWeeks.push(heatDays.slice(i, i + 7));
   }
 
-  const monthLabels = heatWeeks.map((week, index) => {
-    const month = week[0].date.getMonth();
-    const prevMonth = index > 0 ? heatWeeks[index - 1][0].date.getMonth() : -1;
-    return month !== prevMonth ? `${month + 1}月` : "";
-  });
+  const weekCount = heatWeeks.length;
+  // 找出每个月份变化的位置，生成月份标签
+  const heatMonthSegments: Array<{ label: string; start: number; width: number }> = [];
+  let currentSegmentStart = 0;
+  let currentMonth = heatWeeks[0]?.[0]?.date.getMonth() ?? 0;
+
+  for (let i = 0; i < heatWeeks.length; i += 1) {
+    const week = heatWeeks[i];
+    const weekLastDay = week[week.length - 1];
+    if (!weekLastDay) continue;
+
+    const weekMonth = weekLastDay.date.getMonth();
+    if (weekMonth !== currentMonth) {
+      // 月份发生变化，添加新段
+      heatMonthSegments.push({
+        label: `${currentMonth + 1}月`,
+        start: currentSegmentStart,
+        width: i - currentSegmentStart,
+      });
+      currentSegmentStart = i;
+      currentMonth = weekMonth;
+    }
+  }
+
+  // 添加最后一个月份段
+  if (currentSegmentStart < weekCount) {
+    heatMonthSegments.push({
+      label: `${currentMonth + 1}月`,
+      start: currentSegmentStart,
+      width: weekCount - currentSegmentStart,
+    });
+  }
 
   const solvedWeeklyDelta =
     solvedProblems.filter((item) => inLastDays(item.firstAcceptedAt, 7))
@@ -314,63 +379,12 @@ export default async function UserProfilePage({
 
   return (
     <SiteShell requireAuth={false}>
-      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <section className="rounded-2xl border border-ui bg-panel/80 p-5 shadow-[0_10px_30px_rgba(0,0,0,0.06)] backdrop-blur-sm dark:shadow-[0_10px_30px_rgba(0,0,0,0.35)]">
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <div className="rounded-xl border border-ui bg-panel p-4">
-              <p className="text-sm text-muted">完成题目数</p>
-              <p className="mt-2 text-3xl font-semibold tabular-nums">
-                {solvedCount}
-              </p>
-              <p className="mt-2 text-xs text-muted">
-                本周 {formatWeeklyDelta(solvedWeeklyDelta, " 题")}
-              </p>
-            </div>
-            <div className="rounded-xl border border-ui bg-panel p-4">
-              <p className="text-sm text-muted">掌握知识点数量</p>
-              <p className="mt-2 text-3xl font-semibold tabular-nums">
-                {knowledgePoints}
-              </p>
-              <p className="mt-2 text-xs text-muted">
-                本周 {formatWeeklyDelta(knowledgeWeeklyDelta, " 点")}
-              </p>
-            </div>
-            <div className="rounded-xl border border-ui bg-panel p-4">
-              <p className="text-sm text-muted">AI 辅导轮次</p>
-              <p className="mt-2 text-3xl font-semibold tabular-nums">
-                {aiRounds}
-              </p>
-              <p className="mt-2 text-xs text-muted">
-                本周 {formatWeeklyDelta(aiWeeklyDelta, " 轮")}
-              </p>
-            </div>
-            <div className="rounded-xl border border-ui bg-panel p-4">
-              <p className="text-sm text-muted">薄弱模块</p>
-              <p className="mt-2 text-lg font-semibold leading-7">
-                {weakModuleText}
-              </p>
-              <p className="mt-2 text-xs text-muted">
-                本周 {formatWeeklyDelta(weakWeeklyDelta, " 个")}
-              </p>
-            </div>
-          </div>
-
-          {isOwner ? (
-            <div className="mt-4 rounded-xl border border-ui bg-panel px-4 py-3 text-sm">
-              <p className="font-medium">AI 评语</p>
-              <p className="mt-1 leading-7 text-muted">
-                你在最近阶段保持了稳定提交频率，当前通过题数为 {solvedCount}。
-                {weakModules.length > 0
-                  ? `建议优先补强 ${weakModuleText}，每个模块连续完成 3 道同主题题目以提升稳定性。`
-                  : "当前未发现明显薄弱主题，可逐步挑战更高难度题目。"}
-              </p>
-            </div>
-          ) : null}
-        </section>
-
-        <section className="mt-6 grid gap-6 lg:grid-cols-[340px_1fr]">
-          <div className="space-y-6">
-            <div className="rounded-xl border border-ui bg-panel p-5">
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 space-y-6">
+        {/* 第一行：学生信息、比赛Rating、通过题目 */}
+        <section>
+          <div className="grid gap-6 md:grid-cols-3">
+            {/* 学生信息 */}
+            <div className="rounded-md border border-ui bg-panel p-5">
               <div className="flex items-center gap-4">
                 <div className="flex h-14 w-14 items-center justify-center rounded-full bg-panel-strong text-lg font-semibold">
                   {avatarText}
@@ -399,7 +413,8 @@ export default async function UserProfilePage({
               </dl>
             </div>
 
-            <div className="rounded-xl border border-ui bg-panel p-5">
+            {/* 比赛 Rating */}
+            <div className="rounded-md border border-ui bg-panel p-5">
               <div className="flex items-center gap-2 text-sm font-medium">
                 <Trophy className="h-4 w-4" />
                 比赛 Rating
@@ -414,7 +429,8 @@ export default async function UserProfilePage({
               </p>
             </div>
 
-            <div className="rounded-xl border border-ui bg-panel p-5">
+            {/* 通过题目 */}
+            <div className="rounded-md border border-ui bg-panel p-5">
               <div className="flex items-center gap-2 text-sm font-medium">
                 <Target className="h-4 w-4" />
                 通过题目
@@ -423,18 +439,18 @@ export default async function UserProfilePage({
                 <p className="mt-3 text-sm text-muted">暂未通过题目。</p>
               ) : (
                 <ul className="mt-3 space-y-2 text-sm">
-                  {solvedProblems.slice(0, 8).map((problem) => (
+                  {solvedProblems.slice(0, 5).map((problem) => (
                     <li
                       key={problem.slug}
-                      className="flex items-center justify-between border-b border-ui pb-2"
+                      className="flex items-center justify-between border-b border-ui pb-2 last:border-b-0"
                     >
                       <Link
                         href={`/problems/${problem.slug}`}
-                        className="max-w-[200px] truncate text-blue-600 hover:underline dark:text-blue-400"
+                        className="max-w-[150px] truncate text-blue-600 hover:underline dark:text-blue-400"
                       >
                         {problem.title}
                       </Link>
-                      <span className="text-muted">
+                      <span className="text-muted text-xs">
                         {getDifficultyText(problem.difficulty)}
                       </span>
                     </li>
@@ -443,78 +459,126 @@ export default async function UserProfilePage({
               )}
             </div>
           </div>
+        </section>
 
-          <div className="space-y-6">
-            <div className="rounded-xl border border-ui bg-panel p-5">
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2 text-sm font-medium">
-                  <Flame className="h-4 w-4" />
-                  提交热力图
-                </div>
-              </div>
+        {/* 分割线（不贯通） */}
+        <div className="flex justify-center">
+          <div className="w-32 h-px bg-border" />
+        </div>
 
-              <div className="mt-4 overflow-x-auto">
-                <div className="inline-block min-w-[760px]">
-                  <div className="mb-1 flex pl-8 text-[11px] text-muted">
-                    {monthLabels.map((label, index) => (
-                      <span
-                        key={`month-${index}`}
-                        className="inline-block w-[48px] text-left"
-                      >
-                        {label}
-                      </span>
-                    ))}
-                  </div>
-
-                  <div className="flex gap-2">
-                    <div className="grid grid-rows-7 gap-[3px] pt-[1px] text-[10px] text-muted">
-                      <span>一</span>
-                      <span />
-                      <span>三</span>
-                      <span />
-                      <span>五</span>
-                      <span />
-                      <span />
-                    </div>
-
-                    <div className="flex gap-[3px]">
-                      {heatWeeks.map((week, weekIndex) => (
-                        <div
-                          key={`week-${weekIndex}`}
-                          className="grid grid-rows-7 gap-[3px]"
-                        >
-                          {week.map((item) => (
-                            <div
-                              key={item.dayKey}
-                              className={`h-[10px] w-[10px] rounded-[2px] ${getHeatColor(item.count, maxHeatCount)}`}
-                              title={`${item.dayKey} · ${item.count} 次提交`}
-                            />
-                          ))}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-3 flex items-center gap-2 text-xs text-muted">
-                <span>少</span>
-                <span className="h-3 w-3 rounded bg-panel-strong" />
-                <span className="h-3 w-3 rounded bg-emerald-200 dark:bg-emerald-900/40" />
-                <span className="h-3 w-3 rounded bg-emerald-300 dark:bg-emerald-800/55" />
-                <span className="h-3 w-3 rounded bg-emerald-500 dark:bg-emerald-700/80" />
-                <span className="h-3 w-3 rounded bg-emerald-600 dark:bg-emerald-500" />
-                <span>多</span>
-              </div>
+        {/* 第二行：4个指标卡片 */}
+        <section>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-md border border-ui bg-panel p-4">
+              <p className="text-sm text-muted">完成题目数</p>
+              <p className="mt-2 text-3xl font-semibold tabular-nums">
+                {solvedCount}
+              </p>
+              <p className="mt-2 text-xs text-muted">
+                本周 {formatWeeklyDelta(solvedWeeklyDelta, " 题")}
+              </p>
             </div>
+            <div className="rounded-md border border-ui bg-panel p-4">
+              <p className="text-sm text-muted">掌握知识点数量</p>
+              <p className="mt-2 text-3xl font-semibold tabular-nums">
+                {knowledgePoints}
+              </p>
+              <p className="mt-2 text-xs text-muted">
+                本周 {formatWeeklyDelta(knowledgeWeeklyDelta, " 点")}
+              </p>
+            </div>
+            <div className="rounded-md border border-ui bg-panel p-4">
+              <p className="text-sm text-muted">AI 辅导轮次</p>
+              <p className="mt-2 text-3xl font-semibold tabular-nums">
+                {aiRounds}
+              </p>
+              <p className="mt-2 text-xs text-muted">
+                本周 {formatWeeklyDelta(aiWeeklyDelta, " 轮")}
+              </p>
+            </div>
+            {/* 薄弱模块 - 用方块卡片显示3个关键模块 */}
+            <div className="rounded-md border border-ui bg-panel p-4">
+              <p className="text-sm text-muted">薄弱模块</p>
+              <div className="mt-2 space-y-2">
+                {weakModules.slice(0, 3).map((module, index) => (
+                  <div
+                    key={index}
+                    className="flex items-center justify-between rounded px-2 py-1 bg-panel-strong text-xs"
+                  >
+                    <span className="font-medium">{module.topic}</span>
+                    <span className="text-muted">
+                      {Math.round((module.passRate * 100))}%
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-2 text-xs text-muted">
+                本周 {formatWeeklyDelta(weakWeeklyDelta, " 个")}
+              </p>
+            </div>
+          </div>
+        </section>
 
-            <div className="rounded-xl border border-ui bg-panel p-5">
+        {/* 分割线（不贯通） */}
+        <div className="flex justify-center">
+          <div className="w-32 h-px bg-border" />
+        </div>
+
+        {/* 第三行：AI 评语 */}
+        <section>
+          {isOwner ? (
+            <form action={refreshWeeklyAiSummary}>
+              <input type="hidden" name="userId" value={id} />
+              <div className="rounded-md border border-zinc-300 bg-zinc-50 text-sm text-zinc-800 shadow-[0_10px_24px_rgba(0,0,0,0.08)] transition-colors duration-300 ease-out dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100">
+                <div className="flex items-center justify-between gap-3 border-b border-zinc-200 px-4 py-2 text-xs text-zinc-500 transition-colors duration-300 ease-out dark:border-zinc-800 dark:text-zinc-400">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-red-400" />
+                    <span className="h-2 w-2 rounded-full bg-yellow-400" />
+                    <span className="h-2 w-2 rounded-full bg-green-400" />
+                    <span className="ml-2 font-mono">AI 评语</span>
+                  </div>
+                  <button
+                    type="submit"
+                    className="inline-flex h-8 items-center gap-1 rounded-md border border-zinc-200 bg-white px-3 text-xs text-zinc-600 transition-colors duration-300 ease-out hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                    aria-label="刷新本周 AI 评语"
+                  >
+                    <RefreshCw className="h-3.5 w-3.5" />
+                    刷新
+                  </button>
+                </div>
+                <div className="px-4 py-3 font-mono text-[13px] leading-7 transition-colors duration-300 ease-out">
+                  <p className="text-emerald-700 dark:text-emerald-300">
+                    $ analyze --scope weekly --provider {user.aiProvider}{" "}
+                    --model {user.aiModel}
+                  </p>
+                  <p className="mt-2 whitespace-pre-wrap text-zinc-700 dark:text-zinc-200">
+                    {aiSummary}
+                  </p>
+                  <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">
+                    最近刷新：{aiSummaryUpdatedText}
+                  </p>
+                </div>
+              </div>
+            </form>
+          ) : null}
+        </section>
+
+        {/* 合并：提交热力图 与 最近提交记录（同一行，响应式在小屏堆叠） */}
+        <section>
+          <div className="grid gap-6 md:grid-cols-2">
+            <HeatmapSection
+              heatMonthSegments={heatMonthSegments}
+              heatWeeks={heatWeeks}
+              maxHeatCount={maxHeatCount}
+            />
+
+            <div className="rounded-md border border-ui bg-panel p-5">
               <div className="flex items-center gap-2 text-sm font-medium">
                 <BarChart3 className="h-4 w-4" />
                 最近提交记录
               </div>
-              <div className="mt-3 overflow-x-auto">
-                <table className="w-full min-w-[680px] border-collapse text-sm">
+              <div className="mt-3 w-full overflow-x-auto">
+                <table className="w-full border-collapse text-sm">
                   <thead>
                     <tr className="border-b border-ui bg-panel-strong text-left">
                       <th className="h-10 px-3">题目</th>
@@ -568,38 +632,41 @@ export default async function UserProfilePage({
                 </table>
               </div>
             </div>
+          </div>
+        </section>
 
-            <div className="rounded-xl border border-ui bg-panel p-5">
-              <div className="flex items-center gap-2 text-sm font-medium">
-                <BrainCircuit className="h-4 w-4" />
-                参加比赛记录
-              </div>
-              <div className="mt-3 overflow-x-auto">
-                <table className="w-full min-w-[520px] border-collapse text-sm">
-                  <thead>
-                    <tr className="border-b border-ui bg-panel-strong text-left">
-                      <th className="h-10 px-3">比赛</th>
-                      <th className="h-10 px-3">排名</th>
-                      <th className="h-10 px-3">成绩</th>
-                      <th className="h-10 px-3">日期</th>
+        {/* 第六行：参加比赛记录 */}
+        <section>
+          <div className="rounded-md border border-ui bg-panel p-5">
+            <div className="flex items-center gap-2 text-sm font-medium">
+              <BrainCircuit className="h-4 w-4" />
+              参加比赛记录
+            </div>
+            <div className="mt-3 w-full overflow-x-auto">
+              <table className="w-full border-collapse text-sm">
+                <thead>
+                  <tr className="border-b border-ui bg-panel-strong text-left">
+                    <th className="h-10 px-3">比赛</th>
+                    <th className="h-10 px-3">排名</th>
+                    <th className="h-10 px-3">成绩</th>
+                    <th className="h-10 px-3">日期</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {recentContestRecords.map((contest) => (
+                    <tr key={contest.name} className="border-b border-ui">
+                      <td className="h-11 px-3">{contest.name}</td>
+                      <td className="h-11 px-3 tabular-nums">
+                        {contest.rank}
+                      </td>
+                      <td className="h-11 px-3">{contest.performance}</td>
+                      <td className="h-11 px-3 tabular-nums text-muted">
+                        {contest.date}
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {recentContestRecords.map((contest) => (
-                      <tr key={contest.name} className="border-b border-ui">
-                        <td className="h-11 px-3">{contest.name}</td>
-                        <td className="h-11 px-3 tabular-nums">
-                          {contest.rank}
-                        </td>
-                        <td className="h-11 px-3">{contest.performance}</td>
-                        <td className="h-11 px-3 tabular-nums text-muted">
-                          {contest.date}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         </section>
