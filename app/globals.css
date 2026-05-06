@@ -17,6 +17,8 @@
   --code-string: #047857;
   --code-number: #b45309;
   --code-comment: #64748b;
+  --primary: #06b6d4;
+  --primary-foreground: #ffffff;
 }
 
 .dark {
@@ -34,6 +36,8 @@
   --code-string: #34d399;
   --code-number: #fbbf24;
   --code-comment: #94a3b8;
+  --primary: #06b6d4;
+  --primary-foreground: #ffffff;
 }
 
 html {
@@ -81,6 +85,14 @@ a {
     color: var(--muted);
   }
 
+  .text-foreground {
+    color: var(--fg);
+  }
+
+  .text-primary {
+    color: var(--primary);
+  }
+
   .border-ui {
     border-color: var(--border);
   }
@@ -91,6 +103,10 @@ a {
 
   .bg-panel-strong {
     background-color: var(--panel-strong);
+  }
+
+  .bg-background {
+    background-color: var(--bg);
   }
 
   .btn-inverse {

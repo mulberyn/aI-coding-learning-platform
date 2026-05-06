@@ -51,6 +51,25 @@ enum JudgeResultStatus {
   ERROR
 }
 
+enum ContestType {
+  OFFICIAL
+  TEAM_PUBLIC
+  INDIVIDUAL_PUBLIC
+  REPLAY
+}
+
+enum ContestFormat {
+  OI
+  ICPC
+  IOI
+}
+
+enum ContestStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  ENDED
+}
+
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
@@ -176,4 +195,19 @@ model ApiKeyConfig {
 
   @@index([userId])
   @@unique([userId, provider, name])
+}
+
+model Contest {
+  id          String        @id @default(cuid())
+  title       String
+  description String?
+  type        ContestType
+  format      ContestFormat
+  status      ContestStatus
+  startTime   DateTime
+  endTime     DateTime
+  duration    Int           // Duration in minutes
+  participantCount Int       @default(0)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
 }

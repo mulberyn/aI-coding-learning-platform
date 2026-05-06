@@ -24,6 +24,9 @@ const config: Config = {
           800: "#155e75",
           900: "#164e63",
         },
+        primary: "var(--primary, #06b6d4)",
+        "primary-foreground": "var(--primary-foreground, #ffffff)",
+        foreground: "var(--fg)",
       },
       boxShadow: {
         glow: "0 0 0 1px rgba(34, 211, 238, 0.18), 0 24px 80px rgba(15, 23, 42, 0.22)",
