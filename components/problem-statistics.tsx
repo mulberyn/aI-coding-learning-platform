@@ -286,7 +286,7 @@ export function ProblemStatistics({
                 const page = currentPage <= 3 ? i + 2 : currentPage + i - 2;
                 return page > 1 && page < totalPages ? page : null;
               })
-                .filter(Boolean)
+                .filter((page): page is number => page !== null)
                 .map((page) => (
                   <button
                     key={page}

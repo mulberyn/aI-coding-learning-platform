@@ -5,6 +5,8 @@ import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 
 const DEEPSEEK_API_URL = "https://api.deepseek.com/chat/completions";
+const QWEN_API_URL =
+  "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions";
 
 type WeeklySubmission = {
   createdAt: Date;
@@ -24,6 +26,13 @@ type WeeklyStats = {
   weakTopics: string[];
   topicSummary: string;
   activitySummary: string;
+};
+
+type LLMConfig = {
+  provider: string;
+  model: string;
+  apiKey: string;
+  name: string;
 };
 
 function inLastDays(date: Date, days: number, offsetDays = 0) {
@@ -152,6 +161,85 @@ async function fetchDeepseekSummary(params: {
   return content;
 }
 
+async function fetchQwenSummary(params: {
+  apiKey: string;
+  model: string;
+  userName: string;
+  stats: WeeklyStats;
+}) {
+  const { apiKey, model, userName, stats } = params;
+  const prompt = [
+    `你是一个OJ学习教练，请用简洁、积极、专业的中文，为用户生成"本周AI评语"。`,
+    `用户昵称：${userName}`,
+    `本周提交次数：${stats.submissionCount}`,
+    `本周通过次数：${stats.acceptedCount}`,
+    `本周通过题数：${stats.solvedCount}`,
+    `薄弱模块：${stats.topicSummary}`,
+    `输出要求：`,
+    `1. 2-4 句即可。`,
+    `2. 要包含学习状态总结与下周建议。`,
+    `3. 不要使用列表。`,
+    `4. 语气自然，不要过度夸张。`,
+  ].join("\n");
+
+  const response = await fetch(QWEN_API_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        {
+          role: "system",
+          content:
+            "你是一个面向在线评测系统的学习助手，擅长给出简洁、有针对性的学习建议。",
+        },
+        { role: "user", content: prompt },
+      ],
+      temperature: 0.45,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Qwen request failed with ${response.status}`);
+  }
+
+  const data = (await response.json()) as {
+    choices?: Array<{
+      message?: {
+        content?: string;
+      };
+    }>;
+  };
+
+  const content = data.choices?.[0]?.message?.content?.trim();
+  if (!content) {
+    throw new Error("Qwen response did not contain content");
+  }
+
+  return content;
+}
+
+async function fetchLLMSummary(params: {
+  provider: string;
+  model: string;
+  apiKey: string;
+  userName: string;
+  stats: WeeklyStats;
+}) {
+  const { provider, model, apiKey, userName, stats } = params;
+
+  if (provider === "deepseek") {
+    return fetchDeepseekSummary({ apiKey, model, userName, stats });
+  } else if (provider === "qwen") {
+    return fetchQwenSummary({ apiKey, model, userName, stats });
+  } else {
+    throw new Error(`Unsupported provider: ${provider}`);
+  }
+}
+
 async function loadOwnerUser(userId: string) {
   const session = await auth();
   if (session?.user?.id !== userId) {
@@ -166,6 +254,19 @@ async function loadOwnerUser(userId: string) {
       aiProvider: true,
       aiModel: true,
       aiApiKey: true,
+      apiKeyConfigs: {
+        select: {
+          id: true,
+          provider: true,
+          model: true,
+          apiKey: true,
+          name: true,
+          isActive: true,
+        },
+        where: {
+          isActive: true,
+        },
+      },
       submissions: {
         orderBy: { createdAt: "desc" },
         take: 120,
@@ -256,8 +357,29 @@ export async function refreshWeeklyAiSummary(formData: FormData) {
 
   const fallbackSummary = buildFallbackSummary(user.name, stats);
   let aiSummary = fallbackSummary;
+  let usedProvider = user.aiProvider || "deepseek";
+  let usedModel = user.aiModel || "deepseek-chat";
 
-  if (user.aiProvider === "deepseek" && user.aiApiKey) {
+  // 优先使用选定的 API Key 配置
+  if (user.apiKeyConfigs.length > 0) {
+    const activeConfig = user.apiKeyConfigs[0];
+    usedProvider = activeConfig.provider;
+    usedModel = activeConfig.model;
+
+    try {
+      aiSummary = await fetchLLMSummary({
+        provider: activeConfig.provider,
+        model: activeConfig.model,
+        apiKey: activeConfig.apiKey,
+        userName: user.name,
+        stats,
+      });
+    } catch (error) {
+      console.error("LLM API call failed:", error);
+      aiSummary = `${fallbackSummary} 当前 ${activeConfig.provider} 调用暂时不可用，已回退到本地总结。`;
+    }
+  } else if (user.aiProvider === "deepseek" && user.aiApiKey) {
+    // 回退到旧的 Deepseek 配置
     try {
       aiSummary = await fetchDeepseekSummary({
         apiKey: user.aiApiKey,
@@ -268,8 +390,8 @@ export async function refreshWeeklyAiSummary(formData: FormData) {
     } catch {
       aiSummary = `${fallbackSummary} 当前 Deepseek 调用暂时不可用，已回退到本地总结。`;
     }
-  } else if (!user.aiApiKey) {
-    aiSummary = `${fallbackSummary} 请先在设置页填写 Deepseek API Key 后再启用模型刷新。`;
+  } else {
+    aiSummary = `${fallbackSummary} 请先在设置页配置大模型 API Key 后再启用模型刷新。`;
   }
 
   await prisma.user.update({
@@ -277,6 +399,8 @@ export async function refreshWeeklyAiSummary(formData: FormData) {
     data: {
       aiWeeklySummary: aiSummary,
       aiWeeklySummaryUpdatedAt: new Date(),
+      aiProvider: usedProvider,
+      aiModel: usedModel,
     },
   });
 

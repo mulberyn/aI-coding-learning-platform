@@ -5,6 +5,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { saveAiSettings } from "../actions";
 import { SettingSelect } from "../setting-select";
+import { LLMApiKeys } from "../llm-api-keys";
 import type { ReactNode } from "react";
 
 type UserSettingsPageProps = {
@@ -70,6 +71,20 @@ export default async function UserSettingsPage({
     notFound();
   }
 
+  // Fetch all API Key configs
+  const llmConfigs = await prisma.apiKeyConfig.findMany({
+    where: { userId: id },
+    select: {
+      id: true,
+      provider: true,
+      name: true,
+      model: true,
+      apiKey: true,
+      isActive: true,
+    },
+    orderBy: { createdAt: "asc" },
+  });
+
   return (
     <SiteShell>
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
@@ -128,55 +143,72 @@ export default async function UserSettingsPage({
 
           <section className="border-b border-ui">
             <div className="py-4">
-              <h2 className="text-base font-semibold">AI 评语配置</h2>
+              <h2 className="text-base font-semibold">大模型 APIKEY 设置</h2>
               <p className="mt-1 text-sm text-muted">
-                刷新本周 AI 评语时会使用这里保存的模型与 API Key。
+                配置多个大模型的 API Key，支持 Deepseek、Qwen
+                等多个运营商，用于生成学习评语和其他 AI 功能。
               </p>
             </div>
+
             <SettingRow
-              label="大模型服务商"
-              description="当前先保留 Deepseek，后续可以扩展到更多服务商。"
+              label="配置管理"
+              description="添加、选择和管理不同运营商的 API Key 配置。"
             >
-              <SettingSelect
-                name="aiProvider"
-                defaultValue={user.aiProvider}
-                options={[{ value: "deepseek", label: "Deepseek" }]}
-              />
+              <LLMApiKeys initialKeys={llmConfigs} userId={user.id} />
             </SettingRow>
-            <SettingRow
-              label="模型"
-              description="用于生成周度学习评语的模型名称。"
-            >
-              <SettingSelect
-                name="aiModel"
-                defaultValue={user.aiModel}
-                options={[
-                  { value: "deepseek-chat", label: "deepseek-chat" },
-                  { value: "deepseek-reasoner", label: "deepseek-reasoner" },
-                ]}
-              />
-            </SettingRow>
-            <SettingRow
-              label="API Key"
-              description="留空则保持现有密钥，建议仅在自己的设备上填写。"
-            >
-              <input
-                type="password"
-                name="aiApiKey"
-                placeholder={
-                  user.aiApiKey
-                    ? "已配置，留空则保持不变"
-                    : "请输入 Deepseek API Key"
-                }
-                className="w-full rounded-md border border-ui bg-panel px-3 py-2 text-sm text-foreground outline-none transition focus:border-blue-500"
-              />
-              <p className="mt-2 text-xs text-muted">
-                最近刷新：
-                {user.aiWeeklySummaryUpdatedAt
-                  ? formatDateTime(user.aiWeeklySummaryUpdatedAt)
-                  : "尚未刷新"}
+
+            <div className="border-t border-ui py-4">
+              <h3 className="mb-3 text-sm font-medium text-foreground">
+                默认 Deepseek 配置（兼容旧版本）
+              </h3>
+              <p className="mb-3 text-xs text-muted">
+                如果没有从上方选中的 API Key，将使用此处的默认 Deepseek 配置。
               </p>
-            </SettingRow>
+              <SettingRow
+                label="大模型服务商"
+                description="当前先保留 Deepseek，后续可以扩展到更多服务商。"
+              >
+                <SettingSelect
+                  name="aiProvider"
+                  defaultValue={user.aiProvider}
+                  options={[{ value: "deepseek", label: "Deepseek" }]}
+                />
+              </SettingRow>
+              <SettingRow
+                label="模型"
+                description="用于生成周度学习评语的模型名称。"
+              >
+                <SettingSelect
+                  name="aiModel"
+                  defaultValue={user.aiModel}
+                  options={[
+                    { value: "deepseek-chat", label: "deepseek-chat" },
+                    { value: "deepseek-reasoner", label: "deepseek-reasoner" },
+                  ]}
+                />
+              </SettingRow>
+              <SettingRow
+                label="API Key"
+                description="留空则保持现有密钥，建议仅在自己的设备上填写。"
+              >
+                <input
+                  type="password"
+                  name="aiApiKey"
+                  placeholder={
+                    user.aiApiKey
+                      ? "已配置，留空则保持不变"
+                      : "请输入 Deepseek API Key"
+                  }
+                  className="w-full rounded-md border border-ui bg-panel px-3 py-2 text-sm text-foreground outline-none transition focus:border-blue-500"
+                />
+                <p className="mt-2 text-xs text-muted">
+                  最近刷新：
+                  {user.aiWeeklySummaryUpdatedAt
+                    ? formatDateTime(user.aiWeeklySummaryUpdatedAt)
+                    : "尚未刷新"}
+                </p>
+              </SettingRow>
+            </div>
           </section>
 
           <section className="py-4">

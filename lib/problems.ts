@@ -28,7 +28,7 @@ export async function getPartitionedProblems() {
 }
 
 export async function getProblemCatalog() {
-  return prisma.problem.findMany({
+  const problems = await prisma.problem.findMany({
     orderBy: [{ createdAt: "asc" }],
     select: {
       id: true,
@@ -40,8 +40,59 @@ export async function getProblemCatalog() {
       difficulty: true,
       type: true,
       acceptanceRate: true,
+      _count: {
+        select: {
+          submissions: true,
+        },
+      },
     },
   });
+
+  // 为每个问题计算真实的过题人数和通过率
+  const catalogWithStats = await Promise.all(
+    problems.map(async (problem) => {
+      // 计算通过该题目的唯一用户数
+      const acceptedSubmissions = await prisma.submission.groupBy({
+        by: ["userId"],
+        where: {
+          problemId: problem.id,
+          status: SubmissionStatus.ACCEPTED,
+        },
+      });
+      const solvedCount = acceptedSubmissions.length;
+
+      // 计算尝试该题目的唯一用户数
+      const allAttempts = await prisma.submission.groupBy({
+        by: ["userId"],
+        where: {
+          problemId: problem.id,
+        },
+      });
+      const attemptCount = allAttempts.length;
+
+      // 计算通过率
+      const acceptanceRate =
+        attemptCount > 0
+          ? Math.round((solvedCount / attemptCount) * 10000) / 10000
+          : 0;
+
+      return {
+        id: problem.id,
+        slug: problem.slug,
+        title: problem.title,
+        statement: problem.statement,
+        topic: problem.topic,
+        source: problem.source,
+        difficulty: problem.difficulty,
+        type: problem.type,
+        acceptanceRate,
+        solvedCount,
+        attemptCount,
+      };
+    }),
+  );
+
+  return catalogWithStats;
 }
 
 export type UserProblemAttemptState = "UNTRIED" | "ATTEMPTED" | "SOLVED";
@@ -78,7 +129,7 @@ export async function getUserProblemAttemptMap(userId?: string | null) {
 }
 
 export async function getProblemBySlug(slug: string) {
-  return prisma.problem.findUnique({
+  const problem = await prisma.problem.findUnique({
     where: { slug },
     select: {
       id: true,
@@ -107,4 +158,38 @@ export async function getProblemBySlug(slug: string) {
       },
     },
   });
+
+  if (!problem) {
+    return null;
+  }
+
+  // 计算真实的通过人数和通过率
+  const acceptedSubmissions = await prisma.submission.groupBy({
+    by: ["userId"],
+    where: {
+      problemId: problem.id,
+      status: SubmissionStatus.ACCEPTED,
+    },
+  });
+  const solvedCount = acceptedSubmissions.length;
+
+  const allAttempts = await prisma.submission.groupBy({
+    by: ["userId"],
+    where: {
+      problemId: problem.id,
+    },
+  });
+  const attemptCount = allAttempts.length;
+
+  const acceptanceRate =
+    attemptCount > 0
+      ? Math.round((solvedCount / attemptCount) * 10000) / 10000
+      : 0;
+
+  return {
+    ...problem,
+    acceptanceRate,
+    solvedCount,
+    attemptCount,
+  };
 }

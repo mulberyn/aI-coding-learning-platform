@@ -150,6 +150,55 @@ async function seedUsers() {
       role: Role.ADMIN,
       password: "password123",
     },
+    // 多个学生账号
+    {
+      email: "alice@example.com",
+      name: "Alice Chen",
+      role: Role.STUDENT,
+      password: "password123",
+    },
+    {
+      email: "bob@example.com",
+      name: "Bob Wang",
+      role: Role.STUDENT,
+      password: "password123",
+    },
+    {
+      email: "charlie@example.com",
+      name: "Charlie Liu",
+      role: Role.STUDENT,
+      password: "password123",
+    },
+    {
+      email: "diana@example.com",
+      name: "Diana Zhang",
+      role: Role.STUDENT,
+      password: "password123",
+    },
+    {
+      email: "eve@example.com",
+      name: "Eve Li",
+      role: Role.STUDENT,
+      password: "password123",
+    },
+    {
+      email: "frank@example.com",
+      name: "Frank Yang",
+      role: Role.STUDENT,
+      password: "password123",
+    },
+    {
+      email: "grace@example.com",
+      name: "Grace Huang",
+      role: Role.STUDENT,
+      password: "password123",
+    },
+    {
+      email: "henry@example.com",
+      name: "Henry Sun",
+      role: Role.STUDENT,
+      password: "password123",
+    },
   ];
 
   for (const user of users) {

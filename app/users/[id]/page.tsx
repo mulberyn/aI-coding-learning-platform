@@ -138,6 +138,15 @@ export default async function UserProfilePage({
       aiModel: true,
       aiWeeklySummary: true,
       aiWeeklySummaryUpdatedAt: true,
+      apiKeyConfigs: {
+        where: { isActive: true },
+        select: {
+          provider: true,
+          model: true,
+          name: true,
+        },
+        take: 1,
+      },
       _count: {
         select: {
           submissions: true,
@@ -276,7 +285,11 @@ export default async function UserProfilePage({
 
   const weekCount = heatWeeks.length;
   // 找出每个月份变化的位置，生成月份标签
-  const heatMonthSegments: Array<{ label: string; start: number; width: number }> = [];
+  const heatMonthSegments: Array<{
+    label: string;
+    start: number;
+    width: number;
+  }> = [];
   let currentSegmentStart = 0;
   let currentMonth = heatWeeks[0]?.[0]?.date.getMonth() ?? 0;
 
@@ -507,7 +520,7 @@ export default async function UserProfilePage({
                   >
                     <span className="font-medium">{module.topic}</span>
                     <span className="text-muted">
-                      {Math.round((module.passRate * 100))}%
+                      {Math.round(module.passRate * 100)}%
                     </span>
                   </div>
                 ))}
@@ -548,8 +561,14 @@ export default async function UserProfilePage({
                 </div>
                 <div className="px-4 py-3 font-mono text-[13px] leading-7 transition-colors duration-300 ease-out">
                   <p className="text-emerald-700 dark:text-emerald-300">
-                    $ analyze --scope weekly --provider {user.aiProvider}{" "}
-                    --model {user.aiModel}
+                    $ analyze --scope weekly --provider{" "}
+                    {user.apiKeyConfigs.length > 0
+                      ? user.apiKeyConfigs[0].provider
+                      : user.aiProvider}{" "}
+                    --model{" "}
+                    {user.apiKeyConfigs.length > 0
+                      ? user.apiKeyConfigs[0].model
+                      : user.aiModel}
                   </p>
                   <p className="mt-2 whitespace-pre-wrap text-zinc-700 dark:text-zinc-200">
                     {aiSummary}
@@ -656,9 +675,7 @@ export default async function UserProfilePage({
                   {recentContestRecords.map((contest) => (
                     <tr key={contest.name} className="border-b border-ui">
                       <td className="h-11 px-3">{contest.name}</td>
-                      <td className="h-11 px-3 tabular-nums">
-                        {contest.rank}
-                      </td>
+                      <td className="h-11 px-3 tabular-nums">{contest.rank}</td>
                       <td className="h-11 px-3">{contest.performance}</td>
                       <td className="h-11 px-3 tabular-nums text-muted">
                         {contest.date}

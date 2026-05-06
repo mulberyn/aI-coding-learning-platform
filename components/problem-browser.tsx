@@ -22,7 +22,9 @@ export type ProblemCatalogItem = {
   source: string;
   difficulty: keyof typeof difficultyLabel;
   type: "FUNCTIONAL" | "TRADITIONAL";
-  acceptanceRate: number | null;
+  acceptanceRate: number;
+  solvedCount: number;
+  attemptCount: number;
 };
 
 type AttemptState = "UNTRIED" | "ATTEMPTED" | "SOLVED";
@@ -33,8 +35,8 @@ type ProblemBrowserProps = {
   attemptMap?: Record<string, AttemptState>;
 };
 
-function getSolvedCount(acceptanceRate: number | null) {
-  return Math.round((acceptanceRate ?? 0) * 1000);
+function getSolvedCount(solvedCount: number) {
+  return solvedCount;
 }
 
 export function ProblemBrowser({
@@ -390,13 +392,13 @@ export function ProblemBrowser({
                         </div>
 
                         <div className="flex h-10 items-center justify-center pr-1 font-medium">
-                          {getSolvedCount(problem.acceptanceRate)}
+                          {getSolvedCount(problem.solvedCount)}
                         </div>
                         <div className="flex h-10 items-center justify-end pr-1 font-medium">
                           {difficulty}
                         </div>
                         <div className="flex h-10 items-center justify-end pr-1 font-medium">
-                          {Math.round((problem.acceptanceRate ?? 0) * 100)}%
+                          {Math.round(problem.acceptanceRate * 100)}%
                         </div>
                       </div>
                     );
