@@ -52,6 +52,7 @@ export function ProblemBrowser({
     "all" | "TRADITIONAL" | "FUNCTIONAL"
   >("all");
   const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
+  const [collectionFilter, setCollectionFilter] = useState<string | null>(null);
 
   const storageKey = userId ? `problem-favorites:${userId}` : null;
 
@@ -86,10 +87,19 @@ export function ProblemBrowser({
         [problem.title, problem.topic, problem.source, problem.statement]
           .filter(Boolean)
           .some((value) => value.toLowerCase().includes(normalizedSearch));
+      const matchesCollection =
+        collectionFilter !== "my-favorites" || favoriteIds.includes(problem.id);
 
-      return matchesTopic && matchesType && matchesSearch;
+      return matchesTopic && matchesType && matchesSearch && matchesCollection;
     });
-  }, [problems, problemTypeFilter, search, topicFilter]);
+  }, [
+    problems,
+    problemTypeFilter,
+    search,
+    topicFilter,
+    collectionFilter,
+    favoriteIds,
+  ]);
 
   const typeCount = useMemo(() => {
     return {
@@ -99,6 +109,10 @@ export function ProblemBrowser({
         .length,
     };
   }, [problems]);
+
+  const favoriteCount = useMemo(() => {
+    return favoriteIds.length;
+  }, [favoriteIds]);
 
   function persistFavorites(nextFavorites: string[]) {
     setFavoriteIds(nextFavorites);
@@ -240,25 +254,57 @@ export function ProblemBrowser({
             <div className="space-y-3">
               <button
                 type="button"
-                className="block w-full text-left text-base text-muted transition hover:text-current"
+                onClick={() =>
+                  setCollectionFilter(
+                    collectionFilter === "my-favorites" ? null : "my-favorites",
+                  )
+                }
+                className={`flex w-full items-center justify-between text-left text-base transition ${
+                  collectionFilter === "my-favorites"
+                    ? "text-current font-medium"
+                    : "text-muted hover:text-current"
+                }`}
+              >
+                <span>我的收藏</span>
+                <span className="text-sm">{favoriteCount}</span>
+              </button>
+              <button
+                type="button"
+                className={`block w-full text-left text-base transition ${
+                  collectionFilter === "beginner"
+                    ? "text-current font-medium"
+                    : "text-muted hover:text-current"
+                }`}
               >
                 入门题单
               </button>
               <button
                 type="button"
-                className="block w-full text-left text-base text-muted transition hover:text-current"
+                className={`block w-full text-left text-base transition ${
+                  collectionFilter === "algorithm"
+                    ? "text-current font-medium"
+                    : "text-muted hover:text-current"
+                }`}
               >
                 算法题单
               </button>
               <button
                 type="button"
-                className="block w-full text-left text-base text-muted transition hover:text-current"
+                className={`block w-full text-left text-base transition ${
+                  collectionFilter === "data-structure"
+                    ? "text-current font-medium"
+                    : "text-muted hover:text-current"
+                }`}
               >
                 数据结构题单
               </button>
               <button
                 type="button"
-                className="block w-full text-left text-base text-muted transition hover:text-current"
+                className={`block w-full text-left text-base transition ${
+                  collectionFilter === "my-collections"
+                    ? "text-current font-medium"
+                    : "text-muted hover:text-current"
+                }`}
               >
                 我的题单 / 公开题单
               </button>

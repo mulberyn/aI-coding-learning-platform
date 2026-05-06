@@ -132,10 +132,10 @@ int main() {
                 <div className="w-[2px] self-stretch bg-zinc-400/80 dark:bg-zinc-500/90" />
                 <div className="flex min-w-[50px] flex-col items-center justify-center px-3 pt-1">
                   <span className="text-xs font-medium tracking-wide text-muted text-center">
-                    通过
+                    通过率
                   </span>
                   <span className="mt-1 text-sm font-medium leading-none text-foreground text-center">
-                    {problem.acceptanceRate || 0}%
+                    {Math.round((problem.acceptanceRate || 0) * 100)}%
                   </span>
                 </div>
                 <div className="w-[2px] self-stretch bg-zinc-400/80 dark:bg-zinc-500/90" />
