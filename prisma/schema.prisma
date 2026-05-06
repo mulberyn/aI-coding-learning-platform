@@ -208,6 +208,38 @@ model Contest {
   endTime     DateTime
   duration    Int           // Duration in minutes
   participantCount Int       @default(0)
+  announcement String?       // Markdown format announcement/rules
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
+  problems    ContestProblem[]
+  rankings    ContestRanking[]
+}
+
+model ContestProblem {
+  id          String   @id @default(cuid())
+  contestId   String
+  problemId   String   // Reference to Problem.id
+  number      Int      // Problem number in contest (1, 2, 3, ...)
+  fullScore   Int      @default(100)
+  createdAt   DateTime @default(now())
+  contest     Contest  @relation(fields: [contestId], references: [id], onDelete: Cascade)
+
+  @@index([contestId])
+  @@unique([contestId, number])
+}
+
+model ContestRanking {
+  id          String   @id @default(cuid())
+  contestId   String
+  rank        Int
+  userId      String
+  username    String
+  totalScore  Int      @default(0)
+  penalty     Int      @default(0)
+  details     String   // JSON string storing submission details
+  createdAt   DateTime @default(now())
+  contest     Contest  @relation(fields: [contestId], references: [id], onDelete: Cascade)
+
+  @@index([contestId])
+  @@unique([contestId, rank])
 }

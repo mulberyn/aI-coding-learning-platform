@@ -1,7 +1,15 @@
 import bcrypt from "bcryptjs";
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import { Difficulty, PrismaClient, ProblemType, Role } from "@prisma/client";
+import {
+  Difficulty,
+  PrismaClient,
+  ProblemType,
+  Role,
+  ContestType,
+  ContestFormat,
+  ContestStatus,
+} from "@prisma/client";
 
 const prisma = new PrismaClient();
 
@@ -308,9 +316,213 @@ async function seedProblems() {
   }
 }
 
+async function seedContests() {
+  // 获取前4道题目
+  const problems = await prisma.problem.findMany({
+    take: 4,
+    orderBy: { createdAt: "asc" },
+  });
+
+  // 删除现有比赛数据
+  await prisma.contestRanking.deleteMany();
+  await prisma.contestProblem.deleteMany();
+  await prisma.contest.deleteMany();
+
+  // 创建"数据结构基础赛"
+  const contest = await prisma.contest.create({
+    data: {
+      title: "数据结构基础赛",
+      description: "这是一场专注于数据结构基础知识的比赛",
+      type: ContestType.OFFICIAL,
+      format: ContestFormat.OI,
+      status: ContestStatus.ENDED,
+      startTime: new Date(Date.now() - 1209600000), // 14天前
+      endTime: new Date(Date.now() - 1206000000),
+      duration: 90,
+      participantCount: 267,
+      announcement: `# 比赛公告
+
+欢迎参加数据结构基础赛！
+
+## 比赛说明
+
+- 本场比赛共有 4 道题目，总分 100 分
+- 采用 OI 赛制，根据通过的测试点数来计分
+- 比赛期间可查看实时排名
+- 禁止使用任何外部工具或资源，违反规定将被取消成绩
+
+## 重要提示
+
+- 请在比赛开始前检查网络连接
+- 建议在比赛结束前 15 分钟完成最后提交
+- 如遇技术问题，请及时联系管理员
+
+## 时间安排
+
+- **比赛时间**：90 分钟
+- **提交截止时间**：比赛结束时
+- **成绩公布时间**：比赛结束后立即公布
+
+## 评分规则
+
+- 每道题 25 分
+- OI 赛制，部分正确会得到相应分数
+- 时间复杂度不是评分标准，但建议优化`,
+    },
+  });
+
+  // 添加题目
+  for (let i = 0; i < problems.length; i++) {
+    await prisma.contestProblem.create({
+      data: {
+        contestId: contest.id,
+        problemId: problems[i].id,
+        number: i + 1,
+        fullScore: 25,
+      },
+    });
+  }
+
+  // 获取用户列表（跳过教师和管理员）
+  const users = await prisma.user.findMany({
+    where: { role: Role.STUDENT },
+  });
+
+  // 创建排行榜数据
+  const rankings = [
+    {
+      username: "algorithm_master",
+      totalScore: 100,
+      penalty: 0,
+      details: [
+        { problemId: problems[0].id, solved: true, attempts: 1, time: 5 },
+        { problemId: problems[1].id, solved: true, attempts: 2, time: 12 },
+        { problemId: problems[2].id, solved: true, attempts: 1, time: 18 },
+        { problemId: problems[3].id, solved: true, attempts: 3, time: 35 },
+      ],
+    },
+    {
+      username: "data_struct_expert",
+      totalScore: 100,
+      penalty: 0,
+      details: [
+        { problemId: problems[0].id, solved: true, attempts: 1, time: 8 },
+        { problemId: problems[1].id, solved: true, attempts: 1, time: 14 },
+        { problemId: problems[2].id, solved: true, attempts: 2, time: 25 },
+        { problemId: problems[3].id, solved: true, attempts: 2, time: 38 },
+      ],
+    },
+    {
+      username: "coding_enthusiast",
+      totalScore: 75,
+      penalty: 0,
+      details: [
+        { problemId: problems[0].id, solved: true, attempts: 1, time: 6 },
+        { problemId: problems[1].id, solved: true, attempts: 1, time: 16 },
+        { problemId: problems[2].id, solved: true, attempts: 3, time: 28 },
+        { problemId: problems[3].id, solved: false, attempts: 4, time: 45 },
+      ],
+    },
+    {
+      username: "java_lover",
+      totalScore: 75,
+      penalty: 0,
+      details: [
+        { problemId: problems[0].id, solved: true, attempts: 2, time: 10 },
+        { problemId: problems[1].id, solved: true, attempts: 1, time: 18 },
+        { problemId: problems[2].id, solved: false, attempts: 5, time: 50 },
+        { problemId: problems[3].id, solved: true, attempts: 2, time: 32 },
+      ],
+    },
+    {
+      username: "python_coder",
+      totalScore: 50,
+      penalty: 0,
+      details: [
+        { problemId: problems[0].id, solved: true, attempts: 1, time: 7 },
+        { problemId: problems[1].id, solved: false, attempts: 3, time: 40 },
+        { problemId: problems[2].id, solved: true, attempts: 2, time: 22 },
+        { problemId: problems[3].id, solved: false, attempts: 6, time: 60 },
+      ],
+    },
+    {
+      username: "cpp_beginner",
+      totalScore: 50,
+      penalty: 0,
+      details: [
+        { problemId: problems[0].id, solved: true, attempts: 1, time: 4 },
+        { problemId: problems[1].id, solved: false, attempts: 2, time: 25 },
+        { problemId: problems[2].id, solved: false, attempts: 4, time: 55 },
+        { problemId: problems[3].id, solved: true, attempts: 2, time: 50 },
+      ],
+    },
+    {
+      username: "competitive_prog",
+      totalScore: 50,
+      penalty: 0,
+      details: [
+        { problemId: problems[0].id, solved: true, attempts: 2, time: 9 },
+        { problemId: problems[1].id, solved: true, attempts: 1, time: 15 },
+        { problemId: problems[2].id, solved: false, attempts: 5, time: 50 },
+        { problemId: problems[3].id, solved: false, attempts: 4, time: 60 },
+      ],
+    },
+    {
+      username: "learning_path",
+      totalScore: 25,
+      penalty: 0,
+      details: [
+        { problemId: problems[0].id, solved: true, attempts: 1, time: 11 },
+        { problemId: problems[1].id, solved: false, attempts: 2, time: 20 },
+        { problemId: problems[2].id, solved: false, attempts: 3, time: 35 },
+        { problemId: problems[3].id, solved: false, attempts: 2, time: 30 },
+      ],
+    },
+    {
+      username: "newbie_coder",
+      totalScore: 25,
+      penalty: 0,
+      details: [
+        { problemId: problems[0].id, solved: false, attempts: 3, time: 20 },
+        { problemId: problems[1].id, solved: true, attempts: 1, time: 13 },
+        { problemId: problems[2].id, solved: false, attempts: 2, time: 28 },
+        { problemId: problems[3].id, solved: false, attempts: 1, time: 15 },
+      ],
+    },
+    {
+      username: "dream_coder",
+      totalScore: 0,
+      penalty: 0,
+      details: [
+        { problemId: problems[0].id, solved: false, attempts: 2, time: 15 },
+        { problemId: problems[1].id, solved: false, attempts: 1, time: 10 },
+        { problemId: problems[2].id, solved: false, attempts: 1, time: 12 },
+        { problemId: problems[3].id, solved: false, attempts: 1, time: 8 },
+      ],
+    },
+  ];
+
+  for (let i = 0; i < rankings.length; i++) {
+    await prisma.contestRanking.create({
+      data: {
+        contestId: contest.id,
+        rank: i + 1,
+        userId: `user_${i.toString().padStart(3, "0")}`,
+        username: rankings[i].username,
+        totalScore: rankings[i].totalScore,
+        penalty: rankings[i].penalty,
+        details: JSON.stringify(rankings[i].details),
+      },
+    });
+  }
+
+  console.log("✓ Created contest: 数据结构基础赛");
+}
+
 async function main() {
   await seedUsers();
   await seedProblems();
+  await seedContests();
 }
 
 main()

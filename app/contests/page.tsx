@@ -1,12 +1,10 @@
-"use client";
-
-import { useState, useMemo } from "react";
+import { Suspense } from "react";
 import { TopNavBar } from "@/app/components/TopNavBar";
 import { ContestsFilter } from "@/components/contests-filter";
-import { ContestsList } from "@/components/contests-list";
 import { OngoingContests } from "@/components/ongoing-contests";
 import { CustomSelect } from "@/components/custom-select";
-import { mockContests } from "@/lib/mock-contests";
+import { prisma } from "@/lib/prisma";
+import ContestsPageClient from "./contests-client";
 
 const navigationRoutes = [
   { href: "/", label: "首页" },
@@ -16,36 +14,22 @@ const navigationRoutes = [
   { href: "/forum", label: "论坛" },
 ];
 
-export default function ContestsPage() {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedType, setSelectedType] = useState("");
-  const [selectedFormat, setSelectedFormat] = useState("");
-  const [sortBy, setSortBy] = useState("time");
+async function loadContests() {
+  const contests = await prisma.contest.findMany({
+    orderBy: { startTime: "desc" },
+  });
+  return contests;
+}
 
-  const filteredContests = useMemo(() => {
-    let filtered = mockContests.filter((contest) => {
-      const matchesSearch =
-        searchQuery === "" ||
-        contest.title.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesType = selectedType === "" || contest.type === selectedType;
-      const matchesFormat =
-        selectedFormat === "" || contest.format === selectedFormat;
+export default async function ContestsPage() {
+  const contests = await loadContests();
 
-      return matchesSearch && matchesType && matchesFormat;
-    });
-
-    // 排序
-    if (sortBy === "time") {
-      filtered.sort(
-        (a, b) =>
-          new Date(b.startTime).getTime() - new Date(a.startTime).getTime(),
-      );
-    } else if (sortBy === "participants") {
-      filtered.sort((a, b) => b.participantCount - a.participantCount);
-    }
-
-    return filtered;
-  }, [searchQuery, selectedType, selectedFormat, sortBy]);
+  // 转换为客户端可序列化的格式
+  const serializedContests = contests.map((c) => ({
+    ...c,
+    startTime: c.startTime.toISOString(),
+    endTime: c.endTime.toISOString(),
+  }));
 
   return (
     <div className="min-h-screen bg-background">
@@ -64,38 +48,14 @@ export default function ContestsPage() {
 
           <div className="space-y-6">
             {/* 进行中的比赛 */}
-            <OngoingContests contests={mockContests} />
+            <OngoingContests contests={serializedContests} />
 
-            {/* 筛选区域 */}
-            <div className="space-y-4">
-              <div className="flex flex-col gap-4 md:flex-row md:items-center">
-                <div className="flex-1">
-                  <ContestsFilter
-                    onSearchChange={setSearchQuery}
-                    onTypeChange={setSelectedType}
-                    onFormatChange={setSelectedFormat}
-                  />
-                </div>
-
-                {/* 排序选择器 */}
-                <div className="w-full md:w-48">
-                  <CustomSelect
-                    options={[
-                      { value: "time", label: "按时间排序" },
-                      { value: "participants", label: "按参赛人数排序" },
-                    ]}
-                    value={sortBy}
-                    onChange={setSortBy}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* 比赛列表 */}
-            <ContestsList
-              contests={mockContests}
-              filteredContests={filteredContests}
-            />
+            {/* 使用客户端组件处理筛选和排序 */}
+            <Suspense
+              fallback={<div className="text-center text-muted">加载中...</div>}
+            >
+              <ContestsPageClient contests={serializedContests} />
+            </Suspense>
           </div>
         </div>
       </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 interface Contest {
@@ -111,9 +112,11 @@ export function ContestsList({
             className="flex items-center justify-between px-4 py-3 hover:bg-panel transition-colors"
           >
             <div className="flex-1 min-w-0">
-              <h3 className="font-medium text-foreground hover:text-primary cursor-pointer truncate">
-                {contest.title}
-              </h3>
+              <Link href={`/contests/${contest.id}`}>
+                <h3 className="font-medium text-foreground hover:text-primary cursor-pointer truncate">
+                  {contest.title}
+                </h3>
+              </Link>
               <div className="mt-1 flex flex-wrap gap-2 text-xs text-muted">
                 <span>{getTypeLabel(contest.type)}</span>
                 <span>•</span>

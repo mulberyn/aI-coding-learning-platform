@@ -6,8 +6,8 @@ interface Contest {
   type: string;
   format: string;
   status: string;
-  startTime: Date;
-  endTime: Date;
+  startTime: Date | string;
+  endTime: Date | string;
   duration: number;
   participantCount: number;
 }
