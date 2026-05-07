@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ForumBoard } from "@prisma/client";
-import { Flag, MessageSquareMore, Search } from "lucide-react";
+import { Flag, MessageSquareMore, PencilLine, Search } from "lucide-react";
 import { SiteShell } from "@/components/site-shell";
 import { prisma } from "@/lib/prisma";
 import {
@@ -133,7 +133,7 @@ export default async function ForumPage({ searchParams }: ForumPageProps) {
         <form
           action="/forum"
           method="get"
-          className="mt-5 grid gap-3 border-y border-ui py-4 lg:grid-cols-[minmax(0,2.3fr)_minmax(0,1fr)_minmax(0,1fr)_auto]"
+          className="mt-5 grid gap-3 border-y border-ui py-4 lg:grid-cols-[minmax(0,2.3fr)_minmax(0,1fr)_minmax(0,1fr)_auto_auto]"
         >
           <label className="flex h-10 items-center gap-2 rounded-md border border-ui bg-panel px-3 text-sm">
             <Search className="h-4 w-4 text-muted" aria-hidden />
@@ -171,6 +171,14 @@ export default async function ForumPage({ searchParams }: ForumPageProps) {
           >
             筛选
           </button>
+
+          <Link
+            href="/forum/new"
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-sky-200 bg-sky-100 px-4 text-sm font-medium text-sky-900 transition hover:bg-sky-200 dark:border-sky-900/70 dark:bg-sky-950/40 dark:text-sky-100"
+          >
+            <PencilLine className="h-4 w-4" aria-hidden />
+            发帖
+          </Link>
         </form>
 
         <div className="mt-4 border-t border-ui">

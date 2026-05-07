@@ -29,6 +29,20 @@ export async function POST(request: Request) {
 
   const { title, content, board, problemNumber } = parsed.data;
 
+  if (board === ForumBoard.PROBLEM && !problemNumber) {
+    return NextResponse.json(
+      { error: "Problem board requires a problem number" },
+      { status: 400 },
+    );
+  }
+
+  if (board !== ForumBoard.PROBLEM && problemNumber) {
+    return NextResponse.json(
+      { error: "Only problem board can bind a problem number" },
+      { status: 400 },
+    );
+  }
+
   let problemId: string | undefined;
   if (problemNumber) {
     const problem = await prisma.problem.findFirst({
