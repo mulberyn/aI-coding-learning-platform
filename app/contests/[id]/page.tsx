@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { auth, signOut } from "@/auth";
 import { TopNavBar } from "@/app/components/TopNavBar";
 import { getContestDetailFromDb } from "@/lib/contest-db";
 import { prisma } from "@/lib/prisma";
@@ -19,8 +20,14 @@ type ContestDetailPageProps = {
 export default async function ContestDetailPage({
   params,
 }: ContestDetailPageProps) {
+  const session = await auth();
   const { id } = await params;
   const contest = await getContestDetailFromDb(id);
+
+  async function handleSignOut(_formData: FormData) {
+    "use server";
+    await signOut({ redirectTo: "/" });
+  }
 
   if (!contest) {
     notFound();
@@ -47,7 +54,13 @@ export default async function ContestDetailPage({
 
   return (
     <>
-      <TopNavBar routes={navigationRoutes} signedIn={false} />
+      <TopNavBar
+        routes={navigationRoutes}
+        signedIn={Boolean(session?.user)}
+        userId={session?.user?.id}
+        userName={session?.user?.name}
+        onSignOut={session?.user ? handleSignOut : undefined}
+      />
       <ContestDetailContent
         contest={serializedContest}
         problemMap={problemMap}

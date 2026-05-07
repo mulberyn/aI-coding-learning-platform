@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { auth, signOut } from "@/auth";
 import { TopNavBar } from "@/app/components/TopNavBar";
 import { ContestsFilter } from "@/components/contests-filter";
 import { OngoingContests } from "@/components/ongoing-contests";
@@ -22,7 +23,13 @@ async function loadContests() {
 }
 
 export default async function ContestsPage() {
+  const session = await auth();
   const contests = await loadContests();
+
+  async function handleSignOut(_formData: FormData) {
+    "use server";
+    await signOut({ redirectTo: "/" });
+  }
 
   // 转换为客户端可序列化的格式
   const serializedContests = contests.map((c) => ({
@@ -33,7 +40,13 @@ export default async function ContestsPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <TopNavBar routes={navigationRoutes} signedIn={false} />
+      <TopNavBar
+        routes={navigationRoutes}
+        signedIn={Boolean(session?.user)}
+        userId={session?.user?.id}
+        userName={session?.user?.name}
+        onSignOut={session?.user ? handleSignOut : undefined}
+      />
 
       <div className="pt-12">
         <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">

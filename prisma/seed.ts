@@ -9,6 +9,7 @@ import {
   ContestType,
   ContestFormat,
   ContestStatus,
+  ForumBoard,
 } from "@prisma/client";
 
 const prisma = new PrismaClient();
@@ -519,10 +520,236 @@ async function seedContests() {
   console.log("✓ Created contest: 数据结构基础赛");
 }
 
+async function seedForum() {
+  await prisma.forumComment.deleteMany();
+  await prisma.forumPost.deleteMany();
+
+  const users = await prisma.user.findMany({
+    where: { role: Role.STUDENT },
+    select: { id: true, name: true },
+    orderBy: { createdAt: "asc" },
+  });
+
+  const problems = await prisma.problem.findMany({
+    select: { id: true, slug: true, problemNumber: true },
+  });
+
+  if (users.length < 6) {
+    throw new Error("Need at least 6 student users to seed forum data");
+  }
+
+  const problemIdBySlug = new Map(problems.map((item) => [item.slug, item.id]));
+
+  const posts = [
+    {
+      title: "【版务】论坛发帖规范与常见问题汇总",
+      content: `欢迎来到论坛，请先阅读以下规范：\n\n1. 标题尽量清晰，不要只写“求助”。\n2. 题解类内容建议补充复杂度分析。\n3. 请文明交流，避免人身攻击。\n\n如需反馈站点问题，请在站务版发帖。`,
+      board: ForumBoard.SITE,
+      isPinned: true,
+      userIndex: 0,
+      problemSlug: null,
+      createdAt: "2026-05-01T09:20:00.000Z",
+      comments: [
+        {
+          userIndex: 2,
+          content: "收到，建议再补一条关于代码块格式的说明。",
+          createdAt: "2026-05-01T10:00:00.000Z",
+        },
+      ],
+    },
+    {
+      title: "秋招算法岗简历项目怎么写更容易过筛？",
+      content: `最近在整理简历，OJ 项目部分准备写：\n\n- 题库与评测系统\n- 比赛与排行榜\n- 讨论论坛与统计\n\n大家觉得更看重“功能完整度”还是“工程质量（测试/部署）”？`,
+      board: ForumBoard.JOB,
+      isPinned: false,
+      userIndex: 1,
+      problemSlug: null,
+      createdAt: "2026-05-02T08:10:00.000Z",
+      comments: [
+        {
+          userIndex: 4,
+          content: "优先写工程质量，最好能附上性能数据和线上地址。",
+          createdAt: "2026-05-02T09:00:00.000Z",
+        },
+        {
+          userIndex: 5,
+          content: "建议加一段你做过的系统设计取舍，会很加分。",
+          createdAt: "2026-05-02T11:15:00.000Z",
+        },
+      ],
+    },
+    {
+      title: "P0001 相邻对求和：为什么前缀和能稳定过大数据？",
+      content: `我一开始用了双重循环，后来改成前缀和后复杂度降到了 O(n)。\n\n\`\`\`text\n区间和(l, r) = prefix[r] - prefix[l - 1]\n\`\`\`\n\n想确认下这题是否还有更优写法？`,
+      board: ForumBoard.PROBLEM,
+      isPinned: true,
+      userIndex: 3,
+      problemSlug: "P0001",
+      createdAt: "2026-05-03T06:45:00.000Z",
+      comments: [
+        {
+          userIndex: 0,
+          content: "这题前缀和已经是最优思路之一，注意边界就行。",
+          createdAt: "2026-05-03T07:00:00.000Z",
+        },
+        {
+          userIndex: 2,
+          content: "可以再补一个 long long 的说明，防止溢出。",
+          createdAt: "2026-05-03T07:26:00.000Z",
+        },
+      ],
+    },
+    {
+      title: "关于 ICPC 赛制中罚时计算的一个小疑问",
+      content: `看了几场比赛后发现不同平台的罚时实现细节不完全一致，\n主要差异在于“封榜后提交”的处理。\n\n有没有同学整理过标准规则链接？`,
+      board: ForumBoard.ACADEMIC,
+      isPinned: false,
+      userIndex: 2,
+      problemSlug: null,
+      createdAt: "2026-05-03T11:10:00.000Z",
+      comments: [
+        {
+          userIndex: 0,
+          content: "可以看 ICPC RuleBook 官方 PDF，建议以当年版本为准。",
+          createdAt: "2026-05-03T11:40:00.000Z",
+        },
+      ],
+    },
+    {
+      title: "P0004 窗口得分：单调队列写法求 review",
+      content: `代码能过样例，但我担心在重复元素时会出错。\n\n如果队尾值和当前值相等，应该保留旧值还是新值？`,
+      board: ForumBoard.PROBLEM,
+      isPinned: false,
+      userIndex: 4,
+      problemSlug: "P0004",
+      createdAt: "2026-05-04T02:30:00.000Z",
+      comments: [
+        {
+          userIndex: 1,
+          content: "建议保留新的下标，窗口滑动时更直观。",
+          createdAt: "2026-05-04T02:55:00.000Z",
+        },
+      ],
+    },
+    {
+      title: "站务建议：讨论区支持按题号快速跳转",
+      content: `现在筛选已经有题号输入，能否在帖子里识别类似 #P0007 的标记并自动链接？`,
+      board: ForumBoard.SITE,
+      isPinned: false,
+      userIndex: 5,
+      problemSlug: null,
+      createdAt: "2026-05-04T08:00:00.000Z",
+      comments: [],
+    },
+    {
+      title: "算法学习方向：图论先学最短路还是最小生成树？",
+      content: `如果每周只有 6 小时刷题时间，你们会怎么安排图论学习顺序？`,
+      board: ForumBoard.ACADEMIC,
+      isPinned: false,
+      userIndex: 0,
+      problemSlug: null,
+      createdAt: "2026-05-04T13:12:00.000Z",
+      comments: [
+        {
+          userIndex: 3,
+          content: "我建议先最短路，再并查集+MST，最后网络流。",
+          createdAt: "2026-05-04T14:02:00.000Z",
+        },
+      ],
+    },
+    {
+      title: "实习面试常见手撕题，大家都怎么复习？",
+      content: `目前在复习链表、二叉树和基础 DP。\n\n有没有推荐的高频题单？`,
+      board: ForumBoard.JOB,
+      isPinned: false,
+      userIndex: 3,
+      problemSlug: null,
+      createdAt: "2026-05-05T03:20:00.000Z",
+      comments: [],
+    },
+    {
+      title: "P0009 资源队列：我的模拟总是差一个边界",
+      content: `我在处理“队列为空”与“新任务到达”同时发生时会 WA，\n请问这类事件驱动模拟有什么通用模板？`,
+      board: ForumBoard.PROBLEM,
+      isPinned: false,
+      userIndex: 1,
+      problemSlug: "P0009",
+      createdAt: "2026-05-05T06:40:00.000Z",
+      comments: [
+        {
+          userIndex: 2,
+          content: "建议先处理结束事件，再处理到达事件，保持顺序一致。",
+          createdAt: "2026-05-05T07:03:00.000Z",
+        },
+      ],
+    },
+    {
+      title: "论文复现时，实验日志该如何结构化记录？",
+      content: `想请教大家在做算法论文复现时，实验日志是如何组织的？\n\n我现在用 Markdown + 表格。`,
+      board: ForumBoard.ACADEMIC,
+      isPinned: false,
+      userIndex: 4,
+      problemSlug: null,
+      createdAt: "2026-05-05T10:30:00.000Z",
+      comments: [],
+    },
+    {
+      title: "P0012 旋转轨迹：有没有更直观的几何解释？",
+      content: `这题我能写出代码，但对“坐标变换”的理解不够稳定。\n如果有图示讲解会更容易记住。`,
+      board: ForumBoard.PROBLEM,
+      isPinned: false,
+      userIndex: 5,
+      problemSlug: "P0012",
+      createdAt: "2026-05-06T02:45:00.000Z",
+      comments: [],
+    },
+    {
+      title: "站务：建议增加讨论帖草稿自动保存",
+      content: `今天写长帖时浏览器崩了，内容全没了。\n\n希望后续能加本地草稿缓存。`,
+      board: ForumBoard.SITE,
+      isPinned: false,
+      userIndex: 2,
+      problemSlug: null,
+      createdAt: "2026-05-06T05:25:00.000Z",
+      comments: [],
+    },
+  ] as const;
+
+  for (const post of posts) {
+    const createdPost = await prisma.forumPost.create({
+      data: {
+        title: post.title,
+        content: post.content,
+        board: post.board,
+        isPinned: post.isPinned,
+        userId: users[post.userIndex % users.length].id,
+        problemId: post.problemSlug
+          ? (problemIdBySlug.get(post.problemSlug) ?? null)
+          : null,
+        createdAt: new Date(post.createdAt),
+      },
+    });
+
+    for (const comment of post.comments) {
+      await prisma.forumComment.create({
+        data: {
+          postId: createdPost.id,
+          userId: users[comment.userIndex % users.length].id,
+          content: comment.content,
+          createdAt: new Date(comment.createdAt),
+        },
+      });
+    }
+  }
+
+  console.log("✓ Created forum posts and comments");
+}
+
 async function main() {
   await seedUsers();
   await seedProblems();
   await seedContests();
+  await seedForum();
 }
 
 main()

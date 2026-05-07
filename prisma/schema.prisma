@@ -70,6 +70,13 @@ enum ContestStatus {
   ENDED
 }
 
+enum ForumBoard {
+  SITE
+  JOB
+  ACADEMIC
+  PROBLEM
+}
+
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
@@ -85,6 +92,8 @@ model User {
   updatedAt    DateTime @updatedAt
   submissions  Submission[]
   apiKeyConfigs ApiKeyConfig[]
+  forumPosts   ForumPost[]
+  forumComments ForumComment[]
 }
 
 model Problem {
@@ -109,6 +118,7 @@ model Problem {
   examples                Example[]
   testCases               TestCase[]
   submissions             Submission[]
+  forumPosts              ForumPost[]
 }
 
 model Example {
@@ -242,4 +252,38 @@ model ContestRanking {
 
   @@index([contestId])
   @@unique([contestId, rank])
+}
+
+model ForumPost {
+  id         String       @id @default(cuid())
+  title      String
+  content    String
+  isPinned   Boolean      @default(false)
+  board      ForumBoard
+  userId     String
+  problemId  String?
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  problem    Problem?     @relation(fields: [problemId], references: [id], onDelete: SetNull)
+  comments   ForumComment[]
+
+  @@index([board, createdAt])
+  @@index([problemId, createdAt])
+  @@index([isPinned, createdAt])
+  @@index([userId, createdAt])
+}
+
+model ForumComment {
+  id         String    @id @default(cuid())
+  content    String
+  postId     String
+  userId     String
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  post       ForumPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([postId, createdAt])
+  @@index([userId, createdAt])
 }
