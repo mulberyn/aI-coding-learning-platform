@@ -94,6 +94,7 @@ model User {
   apiKeyConfigs ApiKeyConfig[]
   forumPosts   ForumPost[]
   forumComments ForumComment[]
+  contestRegistrations ContestRegistration[]
 }
 
 model Problem {
@@ -223,6 +224,7 @@ model Contest {
   updatedAt   DateTime      @updatedAt
   problems    ContestProblem[]
   rankings    ContestRanking[]
+  registrations ContestRegistration[]
 }
 
 model ContestProblem {
@@ -252,6 +254,19 @@ model ContestRanking {
 
   @@index([contestId])
   @@unique([contestId, rank])
+}
+
+model ContestRegistration {
+  id         String   @id @default(cuid())
+  contestId  String
+  userId     String
+  createdAt  DateTime @default(now())
+  contest    Contest  @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([contestId])
+  @@index([userId])
+  @@unique([contestId, userId])
 }
 
 model ForumPost {

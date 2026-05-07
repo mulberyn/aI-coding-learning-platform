@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Loader2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 
 const getStatusLabel = (status: string) => {
@@ -75,9 +75,40 @@ export default function ContestDetailContent({
   contest,
   problemMap,
 }: ContestDetailContentProps) {
+  const [isPending, startTransition] = useTransition();
+  const [isRegistered, setIsRegistered] = useState(
+    Boolean(contest.isRegistered),
+  );
+  const [participantCount, setParticipantCount] = useState(
+    contest.participantCount,
+  );
+  const [registerError, setRegisterError] = useState("");
   const [activeTab, setActiveTab] = useState<
     "announcement" | "problems" | "ranking"
   >("announcement");
+
+  const canToggleRegistration = contest.status === "NOT_STARTED";
+
+  const handleToggleRegistration = () => {
+    setRegisterError("");
+    startTransition(async () => {
+      const method = isRegistered ? "DELETE" : "POST";
+      const response = await fetch(`/api/contests/${contest.id}/register`, {
+        method,
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        setRegisterError(payload.error || "操作失败，请稍后重试");
+        return;
+      }
+
+      setIsRegistered(!isRegistered);
+      setParticipantCount((currentCount) =>
+        isRegistered ? Math.max(0, currentCount - 1) : currentCount + 1,
+      );
+    });
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -104,6 +135,35 @@ export default function ContestDetailContent({
                 {getStatusLabel(contest.status)}
               </span>
             </div>
+
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              {contest.status === "NOT_STARTED" ? (
+                <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-700">
+                  未开始，可报名
+                </span>
+              ) : null}
+
+              {canToggleRegistration ? (
+                <button
+                  onClick={handleToggleRegistration}
+                  disabled={isPending}
+                  className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-70 ${
+                    isRegistered
+                      ? "bg-rose-100 text-rose-700 hover:bg-rose-200"
+                      : "bg-primary text-primary-foreground hover:bg-primary/90"
+                  }`}
+                >
+                  {isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : null}
+                  {isRegistered ? "取消报名" : "立即报名"}
+                </button>
+              ) : null}
+            </div>
+
+            {registerError ? (
+              <div className="mt-3 text-sm text-red-600">{registerError}</div>
+            ) : null}
           </div>
 
           {/* 分割线 */}
@@ -143,7 +203,7 @@ export default function ContestDetailContent({
                 参赛人数
               </div>
               <div className="mt-2 text-sm text-foreground">
-                {contest.participantCount}
+                {participantCount}
               </div>
             </div>
 

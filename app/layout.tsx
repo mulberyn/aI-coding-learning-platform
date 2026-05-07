@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
+import "katex/dist/katex.min.css";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { SessionProvider } from "next-auth/react";
+import { AIAssistantWidget } from "@/app/components/AIAssistantWidget";
 
 export const metadata: Metadata = {
   title: "AI 辅助编程教育平台",
@@ -15,7 +17,10 @@ export default function RootLayout({
     <html lang="zh-CN" suppressHydrationWarning>
       <body>
         <SessionProvider>
-          <ThemeProvider>{children}</ThemeProvider>
+          <ThemeProvider>
+            {children}
+            <AIAssistantWidget />
+          </ThemeProvider>
         </SessionProvider>
       </body>
     </html>

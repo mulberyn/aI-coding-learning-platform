@@ -325,6 +325,7 @@ async function seedContests() {
   });
 
   // 删除现有比赛数据
+  await prisma.contestRegistration.deleteMany();
   await prisma.contestRanking.deleteMany();
   await prisma.contestProblem.deleteMany();
   await prisma.contest.deleteMany();
@@ -518,6 +519,48 @@ async function seedContests() {
   }
 
   console.log("✓ Created contest: 数据结构基础赛");
+
+  const upcomingContest = await prisma.contest.create({
+    data: {
+      title: "2026 春季算法预备赛",
+      description: "一场尚未开始的练习赛，允许提前报名。",
+      type: ContestType.INDIVIDUAL_PUBLIC,
+      format: ContestFormat.IOI,
+      status: ContestStatus.NOT_STARTED,
+      startTime: new Date(Date.now() + 259200000), // 3天后
+      endTime: new Date(Date.now() + 259200000 + 7200000),
+      duration: 120,
+      participantCount: 0,
+      announcement: `# 2026 春季算法预备赛
+
+欢迎提前报名这场尚未开始的比赛。
+
+## 赛前说明
+
+- 比赛开始前可报名
+- 比赛开始后将自动进入正式作答阶段
+- 采用 IOI 赛制，支持部分分
+
+## 时间安排
+
+- **开始时间**：3 天后
+- **比赛时长**：120 分钟
+`,
+    },
+  });
+
+  for (let i = 0; i < problems.length; i++) {
+    await prisma.contestProblem.create({
+      data: {
+        contestId: upcomingContest.id,
+        problemId: problems[i].id,
+        number: i + 1,
+        fullScore: 25,
+      },
+    });
+  }
+
+  console.log("✓ Created contest: 2026 春季算法预备赛");
 }
 
 async function seedForum() {

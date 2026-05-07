@@ -150,4 +150,77 @@ a {
     font-weight: 400;
     font-style: normal;
   }
+
+  .ai-markdown {
+    color: var(--fg);
+    font-size: 0.94rem;
+    line-height: 1.7;
+    word-break: break-word;
+  }
+
+  .ai-markdown :where(p, ul, ol, pre, blockquote, table) {
+    margin: 0.5rem 0 0;
+  }
+
+  .ai-markdown
+    :where(
+      p:first-child,
+      ul:first-child,
+      ol:first-child,
+      pre:first-child,
+      blockquote:first-child,
+      table:first-child
+    ) {
+    margin-top: 0;
+  }
+
+  .ai-markdown :where(ul, ol) {
+    padding-left: 1.2rem;
+  }
+
+  .ai-markdown :where(li + li) {
+    margin-top: 0.2rem;
+  }
+
+  .ai-markdown code:not(pre code) {
+    border-radius: 0.35rem;
+    border: 1px solid var(--border);
+    background: var(--panel-strong);
+    padding: 0.08rem 0.32rem;
+    font-size: 0.88em;
+  }
+
+  .ai-markdown :where(pre) {
+    overflow-x: auto;
+    border-radius: 0.65rem;
+    border: 1px solid var(--border);
+    background: var(--panel-strong);
+    padding: 0.75rem 0.9rem;
+  }
+
+  .ai-markdown :where(pre code) {
+    display: block;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    white-space: pre;
+  }
+
+  .ai-markdown :where(a) {
+    color: var(--primary);
+    text-decoration: underline;
+    text-underline-offset: 0.14em;
+  }
+
+  .ai-markdown :where(blockquote) {
+    border-left: 3px solid var(--border);
+    padding-left: 0.9rem;
+    color: var(--muted);
+  }
+
+  .ai-markdown :where(.katex-display) {
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 0.25rem 0;
+  }
 }
