@@ -43,6 +43,7 @@ export function CustomSelect({
   return (
     <div ref={selectRef} className="relative w-full">
       <button
+        type="button"
         onClick={() => setOpen(!open)}
         className="w-full rounded-lg border border-ui bg-panel px-4 py-2 text-sm font-medium flex items-center justify-between hover:bg-panel-strong transition-colors"
       >
@@ -61,6 +62,7 @@ export function CustomSelect({
           {options.map((option) => (
             <button
               key={option.value}
+              type="button"
               onClick={() => {
                 onChange(option.value);
                 setOpen(false);

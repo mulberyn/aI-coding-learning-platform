@@ -303,6 +303,7 @@ int main() {
             problemId={problem.id}
             problemSlug={problem.slug}
             problemType={problem.type}
+            problemNumber={problem.problemNumber}
           />
         </div>
       </main>

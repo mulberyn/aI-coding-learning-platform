@@ -12,12 +12,14 @@ type ProblemSidebarProps = {
   problemId: string;
   problemSlug: string;
   problemType: "FUNCTIONAL" | "TRADITIONAL";
+  problemNumber?: number | string;
 };
 
 export function ProblemSidebar({
   problemId,
   problemSlug,
   problemType,
+  problemNumber,
 }: ProblemSidebarProps) {
   const links = [
     {
@@ -56,8 +58,11 @@ export function ProblemSidebar({
       label: "讨论",
       icon: MessageSquare,
       href: {
-        pathname: "/discussion",
-        query: { problemId, problemSlug },
+        pathname: "/forum",
+        query: {
+          board: "PROBLEM",
+          problem: `P${String(problemNumber ?? "").padStart(4, "0")}`,
+        },
       },
     },
   ];

@@ -8,6 +8,7 @@ import {
   FORUM_BOARD_OPTIONS,
   formatForumDate,
 } from "@/lib/forum";
+import { ForumBoardSelect } from "@/components/forum-board-select";
 
 type ForumPageProps = {
   searchParams: Promise<{
@@ -152,18 +153,9 @@ export default async function ForumPage({ searchParams }: ForumPageProps) {
             className="h-10 rounded-md border border-ui bg-panel px-3 text-sm text-foreground outline-none placeholder:text-muted"
           />
 
-          <select
-            name="board"
-            defaultValue={board}
-            className="h-10 rounded-md border border-ui bg-panel px-3 text-sm text-foreground outline-none"
-          >
-            <option value="">全部板块</option>
-            {FORUM_BOARD_OPTIONS.map((item) => (
-              <option key={item.value} value={item.value}>
-                {item.label}
-              </option>
-            ))}
-          </select>
+          <div>
+            <ForumBoardSelect defaultValue={board} />
+          </div>
 
           <button
             type="submit"
