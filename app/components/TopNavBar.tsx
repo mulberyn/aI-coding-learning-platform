@@ -4,22 +4,34 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import {
+  Bot,
   BookOpen,
+  ChartColumnBig,
   FolderOpen,
   Home,
+  LogOut,
   MessageSquare,
+  MessageSquareMore,
   Monitor,
   Moon,
   Sun,
   Trophy,
+  Route as RouteIcon,
   type LucideIcon,
 } from "lucide-react";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { useTheme } from "next-themes";
+import type { Route } from "next";
+
+type RouteChildItem = {
+  href: Route;
+  label: string;
+};
 
 type RouteItem = {
-  href: string;
+  href: Route;
   label: string;
+  children?: RouteChildItem[];
 };
 
 type NavLinkProps = {
@@ -39,9 +51,16 @@ type TopNavBarProps = {
 const navIcons: Record<string, LucideIcon> = {
   "/": Home,
   "/problems": BookOpen,
+  "/analytics": Bot,
   "/submissions": FolderOpen,
   "/contests": Trophy,
   "/forum": MessageSquare,
+};
+
+const childIcons: Record<string, LucideIcon> = {
+  "/analytics": ChartColumnBig,
+  "/learn/route": RouteIcon,
+  "/learn/chat": MessageSquareMore,
 };
 
 function isRouteActive(routeHref: string, pathname: string) {
@@ -55,40 +74,127 @@ function isRouteActive(routeHref: string, pathname: string) {
 function NavLink({ route, active, Icon }: NavLinkProps) {
   return (
     <Link
-      href={route.href as never}
+      href={route.href}
       aria-current={active ? "page" : undefined}
-      className={`group relative inline-flex h-12 items-center px-3 text-sm transition-colors duration-200 ${
+      className={`group relative inline-flex h-12 items-center gap-2 px-3 text-sm font-medium transition-colors duration-200 ${
         active ? "text-current" : "text-muted hover:text-current"
       }`}
     >
-      <span className="relative inline-flex items-center gap-1.5 leading-none">
+      <Icon className="relative z-10 h-4 w-4" />
+      <span className="relative z-10">{route.label}</span>
+      {active ? (
         <motion.span
+          layoutId="top-nav-active-pill"
           aria-hidden="true"
-          className={`pointer-events-none absolute -inset-x-2 -inset-y-1 rounded-md blur-md ${
-            active
-              ? "bg-black/20 dark:bg-white/20"
-              : "bg-black/10 dark:bg-white/10"
-          }`}
-          initial={false}
-          animate={{ opacity: active ? 1 : 0, scaleX: active ? 1 : 0.94 }}
-          whileHover={{ opacity: active ? 1 : 0.85 }}
-          transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
-          style={{ transformOrigin: "center" }}
+          className="pointer-events-none absolute inset-x-2 -bottom-[1px] h-[3px] rounded-full bg-current shadow-[0_0_14px_rgba(0,0,0,0.22)] dark:shadow-[0_0_14px_rgba(255,255,255,0.22)]"
+          transition={{ duration: 0.3, ease: "easeInOut" }}
         />
-
-        <motion.span
-          aria-hidden="true"
-          className="pointer-events-none absolute left-0 right-0 -bottom-[12px] h-[3px] rounded-full bg-black shadow-[0_0_14px_rgba(0,0,0,0.22)] dark:bg-white dark:shadow-[0_0_14px_rgba(255,255,255,0.22)]"
-          initial={false}
-          animate={{ opacity: active ? 1 : 0, scaleX: active ? 1 : 0 }}
-          transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
-          style={{ transformOrigin: "center" }}
-        />
-
-        <Icon className="relative z-10 h-3.5 w-3.5" />
-        <span className="relative z-10">{route.label}</span>
-      </span>
+      ) : null}
     </Link>
+  );
+}
+
+function LearningNavItem({
+  route,
+  active,
+  Icon,
+  pathname,
+}: NavLinkProps & { route: RouteItem; pathname: string }) {
+  const [open, setOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    setOpen(false);
+  }, [active]);
+
+  useEffect(() => {
+    const onPointerDown = (event: MouseEvent) => {
+      const target = event.target;
+      if (
+        target instanceof Node &&
+        menuRef.current &&
+        !menuRef.current.contains(target)
+      ) {
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", onPointerDown);
+    return () => document.removeEventListener("mousedown", onPointerDown);
+  }, []);
+
+  return (
+    <div
+      ref={menuRef}
+      className="relative"
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+    >
+      <button
+        type="button"
+        aria-expanded={open}
+        className={`group relative inline-flex h-12 items-center gap-2 px-3 text-sm font-medium transition-colors duration-200 ${
+          active ? "text-current" : "text-muted hover:text-current"
+        }`}
+        onClick={(e) => {
+          e.preventDefault();
+        }}
+      >
+        <Icon className="relative z-10 h-4 w-4" />
+        <span className="relative z-10">{route.label}</span>
+        <motion.span
+          aria-hidden="true"
+          animate={{ rotate: open ? 180 : 0 }}
+          transition={{ duration: 0.2, ease: "easeInOut" }}
+          className="relative z-10 inline-flex"
+        >
+          <svg
+            viewBox="0 0 20 20"
+            className="h-3.5 w-3.5 fill-current opacity-70"
+            aria-hidden="true"
+          >
+            <path d="M5.25 7.5 10 12.25 14.75 7.5l1.06 1.06L10 14.37 3.94 8.56z" />
+          </svg>
+        </motion.span>
+        {active ? (
+          <motion.span
+            layoutId="top-nav-active-pill"
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-x-2 -bottom-[1px] h-[3px] rounded-full bg-current shadow-[0_0_14px_rgba(0,0,0,0.22)] dark:shadow-[0_0_14px_rgba(255,255,255,0.22)]"
+            transition={{ duration: 0.3, ease: "easeInOut" }}
+          />
+        ) : null}
+      </button>
+
+      <AnimatePresence>
+        {open && route.children?.length ? (
+          <motion.div
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 6 }}
+            transition={{ duration: 0.18, ease: "easeOut" }}
+            className="absolute left-0 top-full z-50 mt-1 w-44 overflow-hidden rounded-[10px] border border-ui bg-panel-strong p-2 shadow-[0_12px_30px_rgba(0,0,0,0.12)] backdrop-blur-md"
+          >
+            {route.children.map((child) => {
+              const childActive = isRouteActive(child.href, pathname);
+              const ChildIcon = childIcons[child.href] ?? Bot;
+              return (
+                <Link
+                  key={child.href}
+                  href={child.href}
+                  className={`flex items-center gap-2 rounded-[10px] px-3 py-2 text-sm transition-colors hover:bg-panel-strong ${
+                    childActive ? "bg-panel-strong text-current" : "text-muted"
+                  }`}
+                >
+                  <ChildIcon className="h-4 w-4 shrink-0" />
+                  <span>{child.label}</span>
+                </Link>
+              );
+            })}
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+    </div>
   );
 }
 
@@ -133,7 +239,7 @@ function ThemeModeButton() {
     <button
       type="button"
       onClick={() => setTheme(nextMode())}
-      className="inline-flex h-9 w-9 items-center justify-center rounded-[7px] bg-panel-strong text-muted transition hover:text-current"
+      className="inline-flex h-9 w-9 items-center justify-center rounded-[7px] border border-ui bg-panel-strong text-muted transition hover:text-current"
       title={`当前：${titleMap[mode]}`}
       aria-label={`切换主题，当前${titleMap[mode]}`}
     >
@@ -173,8 +279,10 @@ export function TopNavBar({
   const [hidden, setHidden] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
-  const activeHref = routes.find((route) =>
-    isRouteActive(route.href, pathname),
+  const activeHref = routes.find(
+    (route) =>
+      isRouteActive(route.href, pathname) ||
+      route.children?.some((child) => isRouteActive(child.href, pathname)),
   )?.href;
 
   useEffect(() => {
@@ -204,12 +312,12 @@ export function TopNavBar({
 
   useEffect(() => {
     const onPointerDown = (event: MouseEvent) => {
-      if (!menuRef.current) {
-        return;
-      }
-
       const target = event.target;
-      if (target instanceof Node && !menuRef.current.contains(target)) {
+      if (
+        target instanceof Node &&
+        menuRef.current &&
+        !menuRef.current.contains(target)
+      ) {
         setMenuOpen(false);
       }
     };
@@ -220,25 +328,47 @@ export function TopNavBar({
 
   return (
     <header
-      className={`fixed inset-x-0 top-0 z-40 bg-[var(--bg)]/95 backdrop-blur-xl transition-transform duration-300 ease-out ${
+      className={`fixed inset-x-0 top-0 z-40 border-b border-black/5 bg-[var(--bg)]/94 shadow-[0_1px_0_rgba(0,0,0,0.04),0_14px_28px_rgba(0,0,0,0.05)] backdrop-blur-xl transition-transform duration-300 ease-out dark:border-white/10 ${
         hidden ? "-translate-y-full" : "translate-y-0"
       }`}
     >
-      <div className="relative mx-auto flex h-12 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-        <div className="flex min-w-0 items-center">
-          <Link href="/" className="text-[15px] font-semibold tracking-tight">
-            AIOJ
+      <div className="relative mx-auto flex h-14 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+        <div className="flex min-w-0 items-center gap-2">
+          <Link href="/" className="inline-flex items-center gap-2">
+            <span className="inline-flex h-8 w-8 items-center justify-center rounded-[8px] border border-ui bg-panel-strong text-current">
+              <Bot className="h-4 w-4" />
+            </span>
+            <span className="text-[15px] font-semibold tracking-tight">
+              AIOJ
+            </span>
           </Link>
         </div>
 
-        <div className="pointer-events-none absolute inset-x-0 hidden h-12 items-center justify-center md:flex">
+        <div className="pointer-events-none absolute inset-x-0 hidden h-14 items-center justify-center md:flex">
           <nav
-            className="pointer-events-auto flex h-12 items-center gap-1"
+            className="pointer-events-auto flex h-14 items-center gap-1.5"
             aria-label="主导航"
           >
             {routes.map((route) => {
-              const active = route.href === activeHref;
+              const active =
+                isRouteActive(route.href, pathname) ||
+                route.children?.some((child) =>
+                  isRouteActive(child.href, pathname),
+                );
               const Icon = navIcons[route.href] ?? Home;
+
+              if (route.children?.length) {
+                return (
+                  <LearningNavItem
+                    key={route.href}
+                    route={route}
+                    active={active}
+                    Icon={Icon}
+                    pathname={pathname}
+                  />
+                );
+              }
+
               return (
                 <NavLink
                   key={route.href}
@@ -258,13 +388,13 @@ export function TopNavBar({
             <>
               <Link
                 href="/login"
-                className="inline-flex h-9 items-center rounded-[7px] bg-[#e5e7eb] px-3 text-sm text-[#111827] transition hover:bg-[#d1d5db]"
+                className="inline-flex h-9 items-center rounded-[7px] border border-ui bg-[#e5e7eb] px-3 text-sm text-[#111827] transition hover:bg-[#d1d5db]"
               >
                 登录
               </Link>
               <Link
                 href="/register"
-                className="inline-flex h-9 items-center rounded-[7px] bg-[#dbeafe] px-3 text-sm text-[#1d4ed8] transition hover:bg-[#bfdbfe]"
+                className="inline-flex h-9 items-center rounded-[7px] border border-ui bg-[#dbeafe] px-3 text-sm text-[#1d4ed8] transition hover:bg-[#bfdbfe]"
               >
                 注册
               </Link>
@@ -274,7 +404,7 @@ export function TopNavBar({
               <button
                 type="button"
                 onClick={() => setMenuOpen((value) => !value)}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-[7px] bg-panel-strong text-sm font-semibold"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-[7px] border border-ui bg-panel-strong text-sm font-semibold"
                 aria-haspopup="menu"
                 aria-expanded={menuOpen}
                 aria-label="打开用户菜单"
@@ -284,7 +414,7 @@ export function TopNavBar({
 
               {menuOpen ? (
                 <div
-                  className="absolute right-0 top-11 w-40 overflow-hidden rounded-[9px] bg-panel py-1 shadow-[0_8px_24px_rgba(0,0,0,0.12)] ring-1 ring-black/5 dark:ring-white/10"
+                  className="absolute right-0 top-11 w-40 overflow-hidden rounded-[10px] border border-ui bg-panel-strong py-1 shadow-[0_18px_34px_rgba(0,0,0,0.12)] backdrop-blur-md"
                   role="menu"
                 >
                   <Link
@@ -307,9 +437,10 @@ export function TopNavBar({
                     <form action={onSignOut}>
                       <button
                         type="submit"
-                        className="block w-full px-3 py-2 text-left text-sm text-muted transition hover:bg-panel-strong hover:text-current"
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-muted transition hover:bg-panel-strong hover:text-current"
                         role="menuitem"
                       >
+                        <LogOut className="h-4 w-4" />
                         退出登录
                       </button>
                     </form>
@@ -320,8 +451,7 @@ export function TopNavBar({
           )}
         </div>
       </div>
-      <div className="h-px bg-[var(--border)]" />
-      <div className="h-[2px] bg-gradient-to-b from-black/10 to-transparent dark:from-white/10" />
+      <div className="h-[1px] bg-gradient-to-r from-transparent via-black/10 to-transparent dark:via-white/10" />
     </header>
   );
 }

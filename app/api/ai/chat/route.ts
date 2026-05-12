@@ -72,7 +72,9 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const incomingMessages = Array.isArray(body?.messages) ? body.messages : [];
+    const incomingMessages: unknown[] = Array.isArray(body?.messages)
+      ? body.messages
+      : [];
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -121,7 +123,10 @@ export async function POST(request: NextRequest) {
     const messages: ChatMessage[] = [
       { role: "system", content: systemPrompt },
       ...incomingMessages
-        .filter((message: unknown): message is ChatMessage =>
+        .filter(
+          (
+            message: unknown,
+          ): message is Pick<ChatMessage, "role" | "content"> =>
           Boolean(
             message &&
             typeof message === "object" &&
@@ -129,7 +134,7 @@ export async function POST(request: NextRequest) {
             ((message as ChatMessage).role === "user" ||
               (message as ChatMessage).role === "assistant"),
           ),
-        )
+        ),
         .map((message) => ({
           role: message.role,
           content: message.content,

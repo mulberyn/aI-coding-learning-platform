@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { auth, signOut } from "@/auth";
 import { HomeCheckInCalendar } from "@/app/components/HomeCheckInCalendar";
+import { HomeLearningRouteModule } from "@/app/components/HomeLearningRouteModule";
 import { TopNavBar } from "@/app/components/TopNavBar";
 import { appRoutes } from "@/lib/route";
 import { prisma } from "@/lib/prisma";
@@ -351,6 +352,33 @@ export default async function HomePage() {
                 </span>
               </div>
             </div>
+          </section>
+
+          <section className="mt-6">
+            {session?.user ? (
+              <HomeLearningRouteModule />
+            ) : (
+              <div className="rounded-[22px] border border-ui bg-panel/95 px-6 py-6">
+                <p className="text-xs font-medium uppercase tracking-[0.32em] text-muted">
+                  AI 学习路线
+                </p>
+                <h2 className="mt-2 text-2xl font-semibold tracking-tight">
+                  登录后启用个性化学习路线推荐
+                </h2>
+                <p className="mt-3 text-sm text-muted">
+                  使用你在设置中配置的大模型 API Key，结合个人历史行为数据，生成并保存可管理的学习路线。
+                </p>
+                <div className="mt-4">
+                  <Link
+                    href="/login"
+                    className="inline-flex items-center gap-2 rounded-[10px] bg-[#e5e7eb] px-4 py-2.5 text-sm font-medium text-[#111827] transition hover:bg-[#d1d5db]"
+                  >
+                    登录以使用 AI 学习路线
+                    <ArrowRight className="h-4 w-4" />
+                  </Link>
+                </div>
+              </div>
+            )}
           </section>
         </div>
       </main>

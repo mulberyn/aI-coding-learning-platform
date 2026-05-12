@@ -4,15 +4,9 @@ import { SiteShell } from "@/components/site-shell";
 import { HeatmapSection } from "./heatmap-section";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
-import {
-  BarChart3,
-  BrainCircuit,
-  Flame,
-  RefreshCw,
-  Target,
-  Trophy,
-} from "lucide-react";
+import { BarChart3, BrainCircuit, Flame, Target, Trophy } from "lucide-react";
 import { refreshWeeklyAiSummary } from "./actions";
+import { getLearningRoutesByUser } from "@/lib/learning-route-db";
 
 type UserProfilePageProps = {
   params: Promise<{ id: string }>;
@@ -180,6 +174,7 @@ export default async function UserProfilePage({
   const allSubmissions = user.submissions;
   const recentSubmissions = allSubmissions.slice(0, 4);
   const isOwner = session?.user?.id === id;
+  const learningRoutes = isOwner ? await getLearningRoutesByUser(id) : [];
 
   const solvedMap = new Map<
     string,
@@ -532,56 +527,6 @@ export default async function UserProfilePage({
           </div>
         </section>
 
-        {/* 分割线（不贯通） */}
-        <div className="flex justify-center">
-          <div className="w-32 h-px bg-border" />
-        </div>
-
-        {/* 第三行：AI 评语 */}
-        <section>
-          {isOwner ? (
-            <form action={refreshWeeklyAiSummary}>
-              <input type="hidden" name="userId" value={id} />
-              <div className="rounded-md border border-zinc-300 bg-zinc-50 text-sm text-zinc-800 shadow-[0_10px_24px_rgba(0,0,0,0.08)] transition-colors duration-300 ease-out dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100">
-                <div className="flex items-center justify-between gap-3 border-b border-zinc-200 px-4 py-2 text-xs text-zinc-500 transition-colors duration-300 ease-out dark:border-zinc-800 dark:text-zinc-400">
-                  <div className="flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-red-400" />
-                    <span className="h-2 w-2 rounded-full bg-yellow-400" />
-                    <span className="h-2 w-2 rounded-full bg-green-400" />
-                    <span className="ml-2 font-mono">AI 评语</span>
-                  </div>
-                  <button
-                    type="submit"
-                    className="inline-flex h-8 items-center gap-1 rounded-md border border-zinc-200 bg-white px-3 text-xs text-zinc-600 transition-colors duration-300 ease-out hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
-                    aria-label="刷新本周 AI 评语"
-                  >
-                    <RefreshCw className="h-3.5 w-3.5" />
-                    刷新
-                  </button>
-                </div>
-                <div className="px-4 py-3 font-mono text-[13px] leading-7 transition-colors duration-300 ease-out">
-                  <p className="text-emerald-700 dark:text-emerald-300">
-                    $ analyze --scope weekly --provider{" "}
-                    {user.apiKeyConfigs.length > 0
-                      ? user.apiKeyConfigs[0].provider
-                      : user.aiProvider}{" "}
-                    --model{" "}
-                    {user.apiKeyConfigs.length > 0
-                      ? user.apiKeyConfigs[0].model
-                      : user.aiModel}
-                  </p>
-                  <p className="mt-2 whitespace-pre-wrap text-zinc-700 dark:text-zinc-200">
-                    {aiSummary}
-                  </p>
-                  <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">
-                    最近刷新：{aiSummaryUpdatedText}
-                  </p>
-                </div>
-              </div>
-            </form>
-          ) : null}
-        </section>
-
         {/* 合并：提交热力图 与 最近提交记录（同一行，响应式在小屏堆叠） */}
         <section>
           <div className="grid gap-6 md:grid-cols-2">
@@ -687,6 +632,42 @@ export default async function UserProfilePage({
             </div>
           </div>
         </section>
+
+        {isOwner ? (
+          <section>
+            <div className="rounded-md border border-ui bg-panel p-5">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <BrainCircuit className="h-4 w-4" />
+                  学习路线
+                </div>
+                <Link
+                  href="/learn/route"
+                  className="rounded-md border border-ui bg-panel-strong px-3 py-1.5 text-xs transition hover:bg-panel"
+                >
+                  管理学习路线
+                </Link>
+              </div>
+
+              {learningRoutes.length === 0 ? (
+                <p className="mt-3 text-sm text-muted">
+                  暂无已保存学习路线。可在首页 AI 学习路线模块或学习路线页生成并保存。
+                </p>
+              ) : (
+                <ul className="mt-3 divide-y divide-[var(--border)] border-y border-ui">
+                  {learningRoutes.slice(0, 5).map((route) => (
+                    <li key={route.id} className="flex items-center justify-between gap-3 py-2 text-sm">
+                      <span className="truncate font-medium">{route.name}</span>
+                      <span className="tabular-nums text-xs text-muted">
+                        {formatDateTime(new Date(route.generatedAt))}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </section>
+        ) : null}
       </div>
     </SiteShell>
   );
