@@ -666,13 +666,27 @@ export function ProblemSubmitPanel({
   }
 
   async function pollSubmission(submissionId: string) {
-    for (let attempt = 0; attempt < 120; attempt += 1) {
+    // 增加超时时间到 3+ 分钟，匹配后端 180 次轮询超时（~3 分钟）
+    const maxAttempts = 200; // 给后端更多的时间完成评测
+    let pollInterval = 1000; // 从 1 秒开始，减少不必要的频繁请求
+
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
       const response = await fetch(`/api/submissions/${submissionId}`, {
         method: "GET",
       });
 
       if (!response.ok) {
-        throw new Error("拉取评测状态失败。请稍后重试。");
+        let errorMessage = "拉取评测状态失败。请稍后重试。";
+        try {
+          const contentType = response.headers.get("content-type");
+          if (contentType?.includes("application/json")) {
+            const payload = (await response.json()) as { error?: string };
+            errorMessage = payload.error ?? errorMessage;
+          }
+        } catch (parseError) {
+          console.error("Failed to parse error response:", parseError);
+        }
+        throw new Error(errorMessage);
       }
 
       const data = (await response.json()) as SubmissionResponse;
@@ -682,10 +696,12 @@ export function ProblemSubmitPanel({
         return;
       }
 
-      await new Promise((resolve) => setTimeout(resolve, 1200));
+      // 逐步增加轮询间隔，避免过度请求
+      await new Promise((resolve) => setTimeout(resolve, pollInterval));
+      pollInterval = Math.min(pollInterval * 1.15, 2500); // 最多 2.5 秒间隔，缓缓递增
     }
 
-    throw new Error("评测轮询超时，请稍后刷新页面查看。");
+    throw new Error("评测超时（超过 3+ 分钟），请刷新页面查看结果。");
   }
 
   async function handleSubmit() {
@@ -718,8 +734,27 @@ export function ProblemSubmitPanel({
       });
 
       if (!response.ok) {
-        const payload = (await response.json()) as { error?: string };
-        throw new Error(payload.error ?? "提交失败，请稍后重试。");
+        let errorMessage = "提交失败，请稍后重试。";
+
+        // 尝试解析 JSON 错误响应
+        try {
+          const contentType = response.headers.get("content-type");
+          if (contentType?.includes("application/json")) {
+            const payload = (await response.json()) as { error?: string };
+            errorMessage = payload.error ?? errorMessage;
+          }
+        } catch (parseError) {
+          // 如果响应不是 JSON，使用默认错误消息
+          console.error("Failed to parse error response:", parseError);
+        }
+
+        throw new Error(errorMessage);
+      }
+
+      // 确保响应有效的 JSON
+      const contentType = response.headers.get("content-type");
+      if (!contentType?.includes("application/json")) {
+        throw new Error("服务器返回了无效的响应格式");
       }
 
       const payload = (await response.json()) as {

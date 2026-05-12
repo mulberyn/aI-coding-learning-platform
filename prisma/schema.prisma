@@ -78,31 +78,34 @@ enum ForumBoard {
 }
 
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  name         String
-  role         Role     @default(STUDENT)
-  passwordHash String
-  aiProvider   String   @default("deepseek")
-  aiModel      String   @default("deepseek-chat")
-  aiApiKey     String?
-  aiWeeklySummary String?
-  aiWeeklySummaryUpdatedAt DateTime?
-  aiRecommendations String?
+  id                         String                @id @default(cuid())
+  email                      String                @unique
+  name                       String
+  role                       Role                  @default(STUDENT)
+  passwordHash               String
+  aiProvider                 String                @default("deepseek")
+  aiModel                    String                @default("deepseek-chat")
+  aiApiKey                   String?
+  aiWeeklySummary            String?
+  aiWeeklySummaryUpdatedAt   DateTime?
+  aiRecommendations          String?
   aiRecommendationsUpdatedAt DateTime?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  submissions  Submission[]
-  apiKeyConfigs ApiKeyConfig[]
-  forumPosts   ForumPost[]
-  forumComments ForumComment[]
-  contestRegistrations ContestRegistration[]
+  aiTutoringCount            Int                   @default(0)
+  createdAt                  DateTime              @default(now())
+  updatedAt                  DateTime              @updatedAt
+  submissions                Submission[]
+  apiKeyConfigs              ApiKeyConfig[]
+  forumPosts                 ForumPost[]
+  forumComments              ForumComment[]
+  contestRegistrations       ContestRegistration[]
+  aiTutorings                AiTutoring[]
+  aiConversations            AiConversation[]
 }
 
 model Problem {
-  id                      String      @id @default(cuid())
+  id                      String       @id @default(cuid())
   problemNumber           Int?
-  slug                    String      @unique
+  slug                    String       @unique
   title                   String
   statement               String
   topic                   String
@@ -116,12 +119,13 @@ model Problem {
   traditionalOutputFormat String?
   timeLimitMs             Int?
   memoryLimitMb           Int?
-  createdAt               DateTime    @default(now())
-  updatedAt               DateTime    @updatedAt
+  createdAt               DateTime     @default(now())
+  updatedAt               DateTime     @updatedAt
   examples                Example[]
   testCases               TestCase[]
   submissions             Submission[]
   forumPosts              ForumPost[]
+  aiTutorings             AiTutoring[]
 }
 
 model Example {
@@ -153,42 +157,43 @@ model TestCase {
 }
 
 model Submission {
-  id          String             @id @default(cuid())
-  userId      String
-  problemId   String
-  language    SubmissionLanguage
-  sourceCode  String
-  status      SubmissionStatus   @default(QUEUED)
-  score       Int                @default(0)
-  message     String?
-  startedAt   DateTime?
-  finishedAt  DateTime?
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
-  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  problem     Problem            @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  id           String             @id @default(cuid())
+  userId       String
+  problemId    String
+  language     SubmissionLanguage
+  sourceCode   String
+  status       SubmissionStatus   @default(QUEUED)
+  score        Int                @default(0)
+  message      String?
+  startedAt    DateTime?
+  finishedAt   DateTime?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  user         User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  problem      Problem            @relation(fields: [problemId], references: [id], onDelete: Cascade)
   judgeResults JudgeResult[]
+  aiTutorings  AiTutoring[]
 
   @@index([userId, createdAt])
   @@index([problemId, createdAt])
 }
 
 model JudgeResult {
-  id            String            @id @default(cuid())
-  submissionId  String
-  testCaseId    String
-  status        JudgeResultStatus @default(PENDING)
-  judge0Token   String?
+  id             String            @id @default(cuid())
+  submissionId   String
+  testCaseId     String
+  status         JudgeResultStatus @default(PENDING)
+  judge0Token    String?
   judge0StatusId Int?
-  stdout        String?
-  stderr        String?
-  compileOutput String?
-  timeSec       Float?
-  memoryKb      Int?
-  createdAt     DateTime          @default(now())
-  updatedAt     DateTime          @updatedAt
-  submission    Submission        @relation(fields: [submissionId], references: [id], onDelete: Cascade)
-  testCase      TestCase          @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
+  stdout         String?
+  stderr         String?
+  compileOutput  String?
+  timeSec        Float?
+  memoryKb       Int?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  submission     Submission        @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  testCase       TestCase          @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
 
   @@unique([submissionId, testCaseId])
   @@index([submissionId])
@@ -197,93 +202,93 @@ model JudgeResult {
 model ApiKeyConfig {
   id        String   @id @default(cuid())
   userId    String
-  provider  String   // "deepseek", "qwen", etc
-  name      String   // User-friendly name like "Deepseek-主", "Qwen-测试"
-  model     String   // Model name for this provider
+  provider  String // "deepseek", "qwen", etc
+  name      String // User-friendly name like "Deepseek-主", "Qwen-测试"
+  model     String // Model name for this provider
   apiKey    String
   isActive  Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([userId])
   @@unique([userId, provider, name])
+  @@index([userId])
 }
 
 model Contest {
-  id          String        @id @default(cuid())
-  title       String
-  description String?
-  type        ContestType
-  format      ContestFormat
-  status      ContestStatus
-  startTime   DateTime
-  endTime     DateTime
-  duration    Int           // Duration in minutes
-  participantCount Int       @default(0)
-  announcement String?       // Markdown format announcement/rules
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-  problems    ContestProblem[]
-  rankings    ContestRanking[]
-  registrations ContestRegistration[]
+  id               String                @id @default(cuid())
+  title            String
+  description      String?
+  type             ContestType
+  format           ContestFormat
+  status           ContestStatus
+  startTime        DateTime
+  endTime          DateTime
+  duration         Int // Duration in minutes
+  participantCount Int                   @default(0)
+  announcement     String? // Markdown format announcement/rules
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+  problems         ContestProblem[]
+  rankings         ContestRanking[]
+  registrations    ContestRegistration[]
 }
 
 model ContestProblem {
-  id          String   @id @default(cuid())
-  contestId   String
-  problemId   String   // Reference to Problem.id
-  number      Int      // Problem number in contest (1, 2, 3, ...)
-  fullScore   Int      @default(100)
-  createdAt   DateTime @default(now())
-  contest     Contest  @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  id        String   @id @default(cuid())
+  contestId String
+  problemId String // Reference to Problem.id
+  number    Int // Problem number in contest (1, 2, 3, ...)
+  fullScore Int      @default(100)
+  createdAt DateTime @default(now())
+  contest   Contest  @relation(fields: [contestId], references: [id], onDelete: Cascade)
 
-  @@index([contestId])
   @@unique([contestId, number])
+  @@index([contestId])
 }
 
 model ContestRanking {
-  id          String   @id @default(cuid())
-  contestId   String
-  rank        Int
-  userId      String
-  username    String
-  totalScore  Int      @default(0)
-  penalty     Int      @default(0)
-  details     String   // JSON string storing submission details
-  createdAt   DateTime @default(now())
-  contest     Contest  @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  id         String   @id @default(cuid())
+  contestId  String
+  rank       Int
+  userId     String
+  username   String
+  totalScore Int      @default(0)
+  penalty    Int      @default(0)
+  details    String // JSON string storing submission details
+  createdAt  DateTime @default(now())
+  contest    Contest  @relation(fields: [contestId], references: [id], onDelete: Cascade)
 
-  @@index([contestId])
   @@unique([contestId, rank])
+  @@index([contestId])
 }
 
 model ContestRegistration {
-  id         String   @id @default(cuid())
-  contestId  String
-  userId     String
-  createdAt  DateTime @default(now())
-  contest    Contest  @relation(fields: [contestId], references: [id], onDelete: Cascade)
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id        String   @id @default(cuid())
+  contestId String
+  userId    String
+  createdAt DateTime @default(now())
+  contest   Contest  @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@unique([contestId, userId])
   @@index([contestId])
   @@index([userId])
-  @@unique([contestId, userId])
 }
 
 model ForumPost {
-  id         String       @id @default(cuid())
-  title      String
-  content    String
-  isPinned   Boolean      @default(false)
-  board      ForumBoard
-  userId     String
-  problemId  String?
-  createdAt  DateTime     @default(now())
-  updatedAt  DateTime     @updatedAt
-  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  problem    Problem?     @relation(fields: [problemId], references: [id], onDelete: SetNull)
-  comments   ForumComment[]
+  id        String         @id @default(cuid())
+  title     String
+  content   String
+  isPinned  Boolean        @default(false)
+  board     ForumBoard
+  userId    String
+  problemId String?
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  problem   Problem?       @relation(fields: [problemId], references: [id], onDelete: SetNull)
+  comments  ForumComment[]
 
   @@index([board, createdAt])
   @@index([problemId, createdAt])
@@ -292,14 +297,14 @@ model ForumPost {
 }
 
 model ForumComment {
-  id         String    @id @default(cuid())
-  content    String
-  postId     String
-  userId     String
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-  post       ForumPost @relation(fields: [postId], references: [id], onDelete: Cascade)
-  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id        String    @id @default(cuid())
+  content   String
+  postId    String
+  userId    String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  post      ForumPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([postId, createdAt])
   @@index([userId, createdAt])
@@ -313,7 +318,27 @@ model AiConversation {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
+}
+
+model AiTutoring {
+  id              String   @id @default(cuid())
+  userId          String
+  submissionId    String
+  problemId       String
+  tutoringType    String // "code_analysis", "improvement_suggestion", "error_analysis"
+  tutoringContent String // Markdown formatted tutoring content
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  submission Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  problem    Problem    @relation(fields: [problemId], references: [id], onDelete: Cascade)
+
+  @@unique([submissionId, tutoringType])
+  @@index([userId, createdAt])
+  @@index([submissionId])
+  @@index([problemId])
 }

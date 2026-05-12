@@ -16,7 +16,7 @@ export default function RootLayout({
   return (
     <html lang="zh-CN" suppressHydrationWarning>
       <body>
-        <SessionProvider>
+        <SessionProvider basePath="/api/auth">
           <ThemeProvider>
             {children}
             <AIAssistantWidget />

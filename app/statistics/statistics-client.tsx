@@ -42,11 +42,15 @@ function StatisticsContent() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!problemSlug) {
+      setError("题目不存在");
+      setLoading(false);
+      return;
+    }
+
     const fetchStatistics = async () => {
       try {
-        const response = await fetch(
-          `/api/statistics?problemSlug=${problemSlug}`,
-        );
+        const response = await fetch(`/api/statistics/${problemSlug}`);
         if (!response.ok) {
           throw new Error("Failed to fetch statistics");
         }

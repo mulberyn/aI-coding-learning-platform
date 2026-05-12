@@ -22,6 +22,7 @@ import {
 import { AnimatePresence, motion } from "framer-motion";
 import { useTheme } from "next-themes";
 import type { Route } from "next";
+import { appRoutes } from "@/lib/route";
 
 type RouteChildItem = {
   href: Route;
@@ -41,8 +42,8 @@ type NavLinkProps = {
 };
 
 type TopNavBarProps = {
-  routes: RouteItem[];
-  signedIn: boolean;
+  routes?: RouteItem[];
+  signedIn?: boolean;
   userId?: string;
   userName?: string | null;
   onSignOut?: (formData: FormData) => Promise<void>;
@@ -268,8 +269,8 @@ function getUserInitial(name?: string | null) {
 }
 
 export function TopNavBar({
-  routes,
-  signedIn,
+  routes = appRoutes,
+  signedIn = false,
   userId,
   userName,
   onSignOut,

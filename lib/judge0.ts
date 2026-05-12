@@ -137,59 +137,145 @@ async function submitToJudge0(
   stdin: string,
   expectedOutput: string,
 ) {
-  const response = await fetch(
-    `${getJudge0BaseUrl()}/submissions?base64_encoded=false&wait=false`,
-    {
-      method: "POST",
-      headers: getJudge0Headers(),
-      body: JSON.stringify({
-        language_id: judge0LanguageIdMap[language],
-        source_code: sourceCode,
-        stdin,
-        expected_output: expectedOutput,
-      }),
-    },
+  const maxRetries = 8; // 从 5 次增加到 8 次
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt < maxRetries; attempt += 1) {
+    try {
+      const response = await fetch(
+        `${getJudge0BaseUrl()}/submissions?base64_encoded=false&wait=false`,
+        {
+          method: "POST",
+          headers: getJudge0Headers(),
+          body: JSON.stringify({
+            language_id: judge0LanguageIdMap[language],
+            source_code: sourceCode,
+            stdin,
+            expected_output: expectedOutput,
+          }),
+        },
+      );
+
+      // 处理 504/503/429 这样的临时错误
+      if (
+        response.status === 504 ||
+        response.status === 503 ||
+        response.status === 429
+      ) {
+        lastError = new Error(
+          `Judge0 temporarily unavailable (${response.status})`,
+        );
+
+        // 改进的指数退避策略：1s, 2s, 3s, 4s, 5s, 5s, 5s
+        // 前几次快速增长，后续保持固定时间
+        let backoffMs = 1000;
+        if (attempt > 0) {
+          backoffMs = Math.min(1000 + attempt * 1000, 5000);
+        }
+        console.log(
+          `[Judge0 Retry] Attempt ${attempt + 1}/${maxRetries}, waiting ${backoffMs}ms before retry`,
+        );
+        await sleep(backoffMs);
+        continue;
+      }
+
+      if (!response.ok) {
+        throw new Error(`Judge0 submit failed: ${response.status}`);
+      }
+
+      const data = (await response.json()) as { token?: string };
+      if (!data.token) {
+        throw new Error("Judge0 submit did not return token.");
+      }
+
+      console.log(`[Judge0 Success] Submission token received: ${data.token}`);
+      return data.token;
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+
+      // 如果不是临时错误，立即抛出
+      if (!lastError.message.includes("temporarily unavailable")) {
+        console.error(`[Judge0 Fatal Error] Non-retryable error:`, lastError);
+        throw lastError;
+      }
+    }
+  }
+
+  console.error(
+    `[Judge0 Failed] All ${maxRetries} retries exhausted:`,
+    lastError?.message,
   );
-
-  if (!response.ok) {
-    throw new Error(`Judge0 submit failed: ${response.status}`);
-  }
-
-  const data = (await response.json()) as { token?: string };
-  if (!data.token) {
-    throw new Error("Judge0 submit did not return token.");
-  }
-
-  return data.token;
+  throw new Error(
+    `Judge0 submit failed after ${maxRetries} retries: ${lastError?.message}`,
+  );
 }
 
 async function pollJudge0(token: string): Promise<Judge0Result> {
-  const maxAttempts = 40;
-  const intervalMs = 1000;
+  // 最多等待 3 分钟（180 次轮询 × 平均 1 秒 = ~3 分钟）
+  const maxAttempts = 180;
+  let intervalMs = 1000; // 从 1 秒开始（提高初始间隔）
 
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-    const response = await fetch(
-      `${getJudge0BaseUrl()}/submissions/${token}?base64_encoded=false&fields=status,stdout,stderr,compile_output,time,memory`,
-      {
-        headers: getJudge0Headers(),
-      },
-    );
+    try {
+      const response = await fetch(
+        `${getJudge0BaseUrl()}/submissions/${token}?base64_encoded=false&fields=status,stdout,stderr,compile_output,time,memory`,
+        {
+          headers: getJudge0Headers(),
+        },
+      );
 
-    if (!response.ok) {
-      throw new Error(`Judge0 polling failed: ${response.status}`);
+      // 处理 504/503/429 这样的临时错误，继续轮询
+      if (
+        response.status === 504 ||
+        response.status === 503 ||
+        response.status === 429
+      ) {
+        console.log(
+          `[Judge0 Poll Retry] Attempt ${attempt + 1}/${maxAttempts}, status ${response.status}, waiting ${intervalMs}ms`,
+        );
+        await sleep(Math.min(intervalMs, 5000));
+        intervalMs = Math.min(intervalMs * 1.3, 5000); // 缓慢递增间隔，最多 5s
+        continue;
+      }
+
+      if (!response.ok) {
+        throw new Error(`Judge0 polling failed: ${response.status}`);
+      }
+
+      const data = (await response.json()) as Judge0Result;
+      const statusId = data.status?.id;
+
+      if (
+        typeof statusId === "number" &&
+        terminalJudge0StatusIds.has(statusId)
+      ) {
+        console.log(
+          `[Judge0 Complete] Token ${token} completed with status ${statusId}`,
+        );
+        return data;
+      }
+
+      // 未完成，继续轮询
+      await sleep(intervalMs);
+      intervalMs = Math.min(intervalMs * 1.2, 5000); // 平缓增长间隔
+    } catch (error) {
+      // 对于网络错误，也进行重试
+      if (attempt < maxAttempts - 1) {
+        console.log(
+          `[Judge0 Poll Error] Attempt ${attempt + 1}/${maxAttempts}, error: ${error instanceof Error ? error.message : String(error)}`,
+        );
+        await sleep(Math.min(intervalMs, 5000));
+        intervalMs = Math.min(intervalMs * 1.3, 5000);
+        continue;
+      }
+      throw error;
     }
-
-    const data = (await response.json()) as Judge0Result;
-    const statusId = data.status?.id;
-
-    if (typeof statusId === "number" && terminalJudge0StatusIds.has(statusId)) {
-      return data;
-    }
-
-    await sleep(intervalMs);
   }
 
-  throw new Error("Judge0 polling timeout.");
+  console.error(
+    `[Judge0 Timeout] Token ${token} did not complete after 3 minutes`,
+  );
+  throw new Error("Judge0 polling timeout after 3 minutes.");
 }
 
 export async function runSubmissionJudging(submissionId: string) {
@@ -288,14 +374,28 @@ export async function runSubmissionJudging(submissionId: string) {
       },
     });
   } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : "评测服务异常，请稍后重试。";
+
+    // 区分不同的错误类型
+    let userMessage = errorMessage;
+    if (errorMessage.includes("temporarily unavailable")) {
+      userMessage = "评测服务暂时不可用，请稍后重新提交。";
+    } else if (errorMessage.includes("polling timeout")) {
+      userMessage = "评测超时，请稍后重新提交。";
+    } else if (errorMessage.includes("submit failed")) {
+      userMessage = "代码提交失败，请检查网络连接后重试。";
+    }
+
     await prisma.submission.update({
       where: { id: submission.id },
       data: {
         status: SubmissionStatus.JUDGE_ERROR,
-        message:
-          error instanceof Error ? error.message : "评测服务异常，请稍后重试。",
+        message: userMessage,
         finishedAt: new Date(),
       },
     });
+
+    console.error(`[Judge0 Error] Submission ${submission.id}:`, errorMessage);
   }
 }
