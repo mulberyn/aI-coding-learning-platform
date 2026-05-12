@@ -1,17 +1,10 @@
 import { notFound } from "next/navigation";
 import { auth, signOut } from "@/auth";
 import { TopNavBar } from "@/app/components/TopNavBar";
+import { appRoutes } from "@/lib/route";
 import { getContestDetailFromDb } from "@/lib/contest-db";
 import { prisma } from "@/lib/prisma";
 import ContestDetailContent from "./contest-detail-content";
-
-const navigationRoutes = [
-  { href: "/", label: "首页" },
-  { href: "/problems", label: "题库" },
-  { href: "/submissions", label: "提交记录" },
-  { href: "/contests", label: "比赛" },
-  { href: "/forum", label: "论坛" },
-];
 
 type ContestDetailPageProps = {
   params: Promise<{ id: string }>;
@@ -68,7 +61,7 @@ export default async function ContestDetailPage({
   return (
     <>
       <TopNavBar
-        routes={navigationRoutes}
+        routes={appRoutes}
         signedIn={Boolean(session?.user)}
         userId={session?.user?.id}
         userName={session?.user?.name}

@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { difficultyLabel, getProblemBySlug } from "@/lib/problems";
 import { auth } from "@/auth";
+import { appRoutes } from "@/lib/route";
 import { CopyButton } from "../../../components/copy-button";
 import { ProblemSidebar } from "@/components/problem-sidebar";
 import { ProblemHeader } from "@/components/problem-header";
@@ -92,19 +93,12 @@ int main() {
   return 0;
 }`;
 
-  const routes = [
-    { href: "/", label: "首页" },
-    { href: "/problems", label: "题库" },
-    { href: "/submissions", label: "提交记录" },
-    { href: "/contests", label: "比赛" },
-    { href: "/forum", label: "论坛" },
-  ];
-
   return (
     <>
       <TopNavBar
-        routes={routes}
+        routes={appRoutes}
         signedIn={!!session}
+        userId={session?.user?.id}
         userName={session?.user?.name}
       />
       <main className="min-h-screen bg-background pt-12">

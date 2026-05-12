@@ -37,7 +37,7 @@ async function callProviderChat(params: {
     body: JSON.stringify({
       model,
       messages,
-      temperature: 0.45,
+      temperature: 0.2,
       stream: false,
     }),
   });
@@ -72,14 +72,11 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const incomingMessages: unknown[] = Array.isArray(body?.messages)
-      ? body.messages
-      : [];
+    const contentForNaming = String(body?.text ?? "");
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: {
-        name: true,
         aiProvider: true,
         aiModel: true,
         aiApiKey: true,
@@ -87,12 +84,7 @@ export async function POST(request: NextRequest) {
           where: { isActive: true },
           orderBy: { createdAt: "asc" },
           take: 1,
-          select: {
-            provider: true,
-            model: true,
-            apiKey: true,
-            name: true,
-          },
+          select: { provider: true, model: true, apiKey: true },
         },
       },
     });
@@ -118,47 +110,21 @@ export async function POST(request: NextRequest) {
     }
 
     const systemPrompt =
-      "你是一个面向在线评测平台的 AI 学习助手。请用简洁、自然、专业的中文回答，优先结合用户提供的上下文、题目与学习目标。支持 Markdown 和数学公式输出。";
+      "你是一个简洁的中文命名助手。请为下列对话或文本生成一个简短、明晰的对话名，最好不超过 18 个字符，直接返回名称。不要带额外标点或说明。";
 
     const messages: ChatMessage[] = [
       { role: "system", content: systemPrompt },
-      ...incomingMessages
-        .filter(
-          (
-            message: unknown,
-          ): message is Pick<ChatMessage, "role" | "content"> =>
-            Boolean(
-              message &&
-              typeof message === "object" &&
-              typeof (message as ChatMessage).content === "string" &&
-              ((message as ChatMessage).role === "user" ||
-                (message as ChatMessage).role === "assistant"),
-            ),
-        )
-        .map((message) => ({
-          role: message.role,
-          content: message.content,
-        })),
+      {
+        role: "user",
+        content: `请为如下内容生成对话名称：\n\n${contentForNaming}`,
+      },
     ];
 
-    const content = await callProviderChat({
-      provider,
-      apiKey,
-      model,
-      messages,
-    });
+    const title = await callProviderChat({ provider, apiKey, model, messages });
 
-    return NextResponse.json({
-      content,
-      provider,
-      model,
-      configName: selectedConfig?.name ?? null,
-    });
+    return NextResponse.json({ title: title.slice(0, 80) });
   } catch (error) {
-    console.error("AI chat request failed:", error);
-    return NextResponse.json(
-      { error: "AI 请求失败，请检查 API Key 或模型配置" },
-      { status: 500 },
-    );
+    console.error("Generate name failed:", error);
+    return NextResponse.json({ error: "生成名称失败" }, { status: 500 });
   }
 }

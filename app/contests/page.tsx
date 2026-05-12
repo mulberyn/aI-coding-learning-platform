@@ -1,19 +1,12 @@
 import { Suspense } from "react";
 import { auth, signOut } from "@/auth";
 import { TopNavBar } from "@/app/components/TopNavBar";
+import { appRoutes } from "@/lib/route";
 import { ContestsFilter } from "@/components/contests-filter";
 import { OngoingContests } from "@/components/ongoing-contests";
 import { CustomSelect } from "@/components/custom-select";
 import { prisma } from "@/lib/prisma";
 import ContestsPageClient from "./contests-client";
-
-const navigationRoutes = [
-  { href: "/", label: "首页" },
-  { href: "/problems", label: "题库" },
-  { href: "/submissions", label: "提交记录" },
-  { href: "/contests", label: "比赛" },
-  { href: "/forum", label: "论坛" },
-];
 
 async function loadContests() {
   const contests = await prisma.contest.findMany({
@@ -41,7 +34,7 @@ export default async function ContestsPage() {
   return (
     <div className="min-h-screen bg-background">
       <TopNavBar
-        routes={navigationRoutes}
+        routes={appRoutes}
         signedIn={Boolean(session?.user)}
         userId={session?.user?.id}
         userName={session?.user?.name}

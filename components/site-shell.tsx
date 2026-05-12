@@ -1,5 +1,6 @@
 import { appRoutes } from "@/lib/route";
-import { auth, signOut } from "@/auth";
+import { auth } from "@/auth";
+import { handleSignOut } from "@/components/actions/authActions";
 import { redirect } from "next/navigation";
 import { TopNavBar } from "@/app/components/TopNavBar";
 
@@ -18,10 +19,7 @@ export async function SiteShell({
     redirect("/login");
   }
 
-  async function handleSignOut(_formData: FormData) {
-    "use server";
-    await signOut({ redirectTo: "/" });
-  }
+  // server action moved to components/actions/authActions.ts
 
   return (
     <div className="min-h-screen">

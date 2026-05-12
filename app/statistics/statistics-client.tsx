@@ -65,6 +65,15 @@ function StatisticsContent() {
   const routes = [
     { href: "/", label: "首页" },
     { href: "/problems", label: "题库" },
+    {
+      href: "/analytics",
+      label: "学习",
+      children: [
+        { href: "/analytics", label: "学习概览" },
+        { href: "/learn/route", label: "学习路线" },
+        { href: "/learn/chat", label: "AI对话" },
+      ],
+    },
     { href: "/submissions", label: "提交记录" },
     { href: "/contests", label: "比赛" },
     { href: "/forum", label: "论坛" },
@@ -75,6 +84,7 @@ function StatisticsContent() {
       <TopNavBar
         routes={routes}
         signedIn={!!session}
+        userId={session?.user?.id}
         userName={session?.user?.name}
       />
       <main className="min-h-screen bg-background pt-12">

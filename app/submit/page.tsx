@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { auth } from "@/auth";
 import { TopNavBar } from "@/app/components/TopNavBar";
+import { appRoutes } from "@/lib/route";
 import { SubmissionPanel } from "@/components/submission-panel";
 import { getProblemBySlug } from "@/lib/problems";
 import { prisma } from "@/lib/prisma";
@@ -64,19 +65,12 @@ export default async function SubmitPage({ searchParams }: SubmitPageProps) {
   const defaultCode =
     latestSubmission?.sourceCode?.trim() || buildDefaultCode(resolvedType);
 
-  const routes = [
-    { href: "/", label: "首页" },
-    { href: "/problems", label: "题库" },
-    { href: "/submissions", label: "提交记录" },
-    { href: "/contests", label: "比赛" },
-    { href: "/forum", label: "论坛" },
-  ];
-
   return (
     <>
       <TopNavBar
-        routes={routes}
+        routes={appRoutes}
         signedIn={!!session}
+        userId={session?.user?.id}
         userName={session?.user?.name}
       />
       <main className="min-h-screen bg-background pt-12">

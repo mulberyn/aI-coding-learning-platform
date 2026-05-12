@@ -161,6 +161,12 @@ export function AIAssistantWidget() {
     },
   ]);
   const [isSending, setIsSending] = useState(false);
+  const [saveOpen, setSaveOpen] = useState(false);
+  const [saveTitle, setSaveTitle] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [savedConversationId, setSavedConversationId] = useState<string | null>(
+    null,
+  );
 
   const combinedContextText = useMemo(() => {
     if (contextItems.length === 0) {
@@ -319,6 +325,20 @@ export function AIAssistantWidget() {
       },
     ]);
     setPresetOpen(false);
+  }
+
+  function serializeConversationMessages() {
+    return messages.map((message) => ({
+      role: message.role,
+      content: message.content,
+      promptText: message.promptText ?? null,
+      attachments: message.attachments?.map((attachment) => ({
+        id: attachment.id,
+        type: attachment.type,
+        title: attachment.title,
+        content: attachment.content,
+      })),
+    }));
   }
 
   function removeContextItem(id: string) {
@@ -507,14 +527,52 @@ export function AIAssistantWidget() {
                   </div>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setOpen(false)}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-[0.7rem] border border-ui bg-panel-strong text-muted hover:text-current"
-                aria-label="关闭 AI 助手"
-              >
-                <X className="h-4 w-4" />
-              </button>
+              <div className="flex items-center gap-2">
+                {messages.length > 1 ? (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setSaveOpen(true);
+                      // prefill title by asking backend to generate name
+                      try {
+                        const textForName =
+                          combinedContextText ||
+                          messages
+                            .map((m) => m.content)
+                            .slice(-3)
+                            .map((c) => c.slice(0, 200))
+                            .join("\n\n");
+                        const resp = await fetch("/api/ai/generate-name", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ text: textForName }),
+                        });
+                        const payload = await resp.json();
+                        if (resp.ok && payload?.title) {
+                          setSaveTitle(payload.title);
+                        } else {
+                          // fallback
+                          setSaveTitle("对话 " + new Date().toLocaleString());
+                        }
+                      } catch (e) {
+                        setSaveTitle("对话 " + new Date().toLocaleString());
+                      }
+                    }}
+                    className="inline-flex h-8 items-center gap-2 rounded-[0.7rem] border border-ui bg-panel-strong px-3 text-xs text-muted hover:text-current"
+                  >
+                    保存对话
+                  </button>
+                ) : null}
+
+                <button
+                  type="button"
+                  onClick={() => setOpen(false)}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-[0.7rem] border border-ui bg-panel-strong text-muted hover:text-current"
+                  aria-label="关闭 AI 助手"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
             </div>
 
             <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4">
@@ -899,6 +957,95 @@ export function AIAssistantWidget() {
 
               <div className="mt-4 max-h-[60vh] overflow-y-auto rounded-[0.85rem] border border-ui bg-panel px-3 py-2.5 text-sm leading-7 text-foreground">
                 {previewItem.content}
+              </div>
+            </div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {saveOpen ? (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.96, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.96, y: 10 }}
+            transition={{ duration: 0.14, ease: "easeOut" }}
+            className="fixed inset-0 z-[90] flex items-center justify-center bg-black/20 px-4 py-6 backdrop-blur-sm"
+            onClick={() => setSaveOpen(false)}
+          >
+            <div
+              className="w-[min(36rem,calc(100vw-2rem))] rounded-[1rem] border border-ui bg-background p-4 shadow-[0_24px_60px_rgba(0,0,0,0.18)]"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="flex items-center justify-between gap-3 border-b border-ui pb-3">
+                <div>
+                  <div className="text-sm font-semibold tracking-tight text-foreground">
+                    保存对话
+                  </div>
+                  <div className="mt-1 text-xs text-muted">
+                    为当前对话输入一个名称
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSaveOpen(false)}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-[0.7rem] border border-ui bg-panel-strong text-muted hover:text-current"
+                  aria-label="关闭 保存对话"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              <div className="mt-4">
+                <input
+                  value={saveTitle}
+                  onChange={(e) => setSaveTitle(e.target.value)}
+                  placeholder="对话名称"
+                  className="w-full rounded-[0.6rem] border border-ui bg-panel px-3 py-2 text-sm outline-none"
+                />
+
+                <div className="mt-4 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSaveOpen(false)}
+                    className="inline-flex h-9 items-center rounded-[0.6rem] border border-ui bg-panel-strong px-3 text-xs text-muted hover:text-current"
+                  >
+                    取消
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!saveTitle) return;
+                      setIsSaving(true);
+                      try {
+                        const resp = await fetch("/api/ai/conversations", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            title: saveTitle,
+                            messages: serializeConversationMessages(),
+                          }),
+                        });
+
+                        const payload = await resp.json();
+                        if (resp.ok && payload?.item) {
+                          setSavedConversationId(payload.item.id ?? null);
+                          setSaveOpen(false);
+                        } else {
+                          console.error("save failed", payload);
+                        }
+                      } catch (e) {
+                        console.error("save error", e);
+                      } finally {
+                        setIsSaving(false);
+                      }
+                    }}
+                    className="inline-flex h-9 items-center rounded-[0.6rem] bg-[#dbeafe] px-3 text-xs font-medium text-[#1d4ed8] hover:bg-[#bfdbfe] disabled:opacity-60"
+                    disabled={isSaving}
+                  >
+                    保存
+                  </button>
+                </div>
               </div>
             </div>
           </motion.div>
