@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Sparkles, Loader2 } from "lucide-react";
 import type { Submission, AiTutoring } from "@prisma/client";
 
@@ -10,21 +12,21 @@ interface SubmissionWithTutoring extends Submission {
 
 interface LearnSubmissionsListProps {
   problemId: string;
+  problemSlug?: string;
   userId: string;
 }
 
 export function LearningSubmissionsList({
   problemId,
+  problemSlug,
   userId,
 }: LearnSubmissionsListProps) {
+  const router = useRouter();
   const [submissions, setSubmissions] = useState<SubmissionWithTutoring[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tutoringLoading, setTutoringLoading] = useState<{
     [key: string]: boolean;
-  }>({});
-  const [tutoringContent, setTutoringContent] = useState<{
-    [key: string]: string;
   }>({});
 
   useEffect(() => {
@@ -48,7 +50,10 @@ export function LearningSubmissionsList({
     fetchSubmissions();
   }, [problemId]);
 
-  const handleTutoring = async (submissionId: string, tutoringType: string) => {
+  const handleGenerateAnalysis = async (
+    submissionId: string,
+    tutoringType: string,
+  ) => {
     const key = `${submissionId}-${tutoringType}`;
 
     // Check if tutoring already exists
@@ -58,11 +63,8 @@ export function LearningSubmissionsList({
     );
 
     if (existingTutoring) {
-      setTutoringContent((prev) => ({
-        ...prev,
-        [key]: existingTutoring.tutoringContent,
-      }));
-      return;
+      // Analysis already exists, user can navigate directly
+      return true;
     }
 
     setTutoringLoading((prev) => ({ ...prev, [key]: true }));
@@ -77,10 +79,6 @@ export function LearningSubmissionsList({
       if (!res.ok) throw new Error("Failed to generate tutoring");
 
       const data = await res.json();
-      setTutoringContent((prev) => ({
-        ...prev,
-        [key]: data.tutoringContent,
-      }));
 
       // Update submissions to include new tutoring
       setSubmissions((prev) =>
@@ -93,10 +91,34 @@ export function LearningSubmissionsList({
             : s,
         ),
       );
+      return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to get tutoring");
+      return false;
     } finally {
       setTutoringLoading((prev) => ({ ...prev, [key]: false }));
+    }
+  };
+
+  const getAnalysisUrl = (submissionId: string, tutoringType: string) => {
+    const params = new URLSearchParams();
+    if (problemId) {
+      params.append("problemId", problemId);
+    }
+    if (problemSlug) {
+      params.append("problemSlug", problemSlug);
+    }
+    return `/learn/analysis/${submissionId}/${tutoringType}?${params.toString()}`;
+  };
+
+  const handleAnalysisClick = async (
+    submissionId: string,
+    tutoringType: string,
+  ) => {
+    // Generate analysis if it doesn't exist, then navigate
+    const success = await handleGenerateAnalysis(submissionId, tutoringType);
+    if (success) {
+      router.push(getAnalysisUrl(submissionId, tutoringType));
     }
   };
 
@@ -181,36 +203,28 @@ export function LearningSubmissionsList({
                 const hasTutoring = submission.aiTutorings?.some(
                   (t) => t.tutoringType === key,
                 );
-                const content = tutoringContent[tutKey];
+                const isLoading = tutoringLoading[tutKey];
 
                 return (
-                  <div key={key}>
-                    <button
-                      onClick={() => handleTutoring(submission.id, key)}
-                      disabled={tutoringLoading[tutKey]}
-                      className="flex items-center gap-2 rounded-lg border border-ui bg-blue-50 px-3 py-2 text-xs font-medium text-blue-600 transition-colors hover:bg-blue-100 disabled:opacity-50 dark:bg-blue-950 dark:text-blue-300 dark:hover:bg-blue-900"
-                    >
-                      {tutoringLoading[tutKey] ? (
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                      ) : (
-                        <Sparkles className="h-3 w-3" />
-                      )}
-                      {hasTutoring ? `${label}（已生成）` : `${label}`}
-                    </button>
-
-                    {content && (
-                      <div className="mt-2 rounded-lg border border-ui bg-background p-3">
-                        <div className="prose prose-sm max-w-none dark:prose-invert">
-                          <p className="mb-2 text-xs font-semibold text-foreground">
-                            AI {label}：
-                          </p>
-                          <div className="whitespace-pre-wrap text-xs text-muted">
-                            {content}
-                          </div>
-                        </div>
-                      </div>
+                  <button
+                    key={key}
+                    onClick={() => {
+                      handleAnalysisClick(submission.id, key);
+                    }}
+                    disabled={isLoading}
+                    className="flex items-center gap-2 rounded-lg border border-ui bg-blue-50 px-3 py-2 text-xs font-medium text-blue-600 transition-colors hover:bg-blue-100 disabled:opacity-50 dark:bg-blue-950 dark:text-blue-300 dark:hover:bg-blue-900 disabled:cursor-not-allowed"
+                  >
+                    {isLoading ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <Sparkles className="h-3 w-3" />
                     )}
-                  </div>
+                    {isLoading
+                      ? "生成中..."
+                      : hasTutoring
+                        ? `${label}（已生成）`
+                        : `${label}`}
+                  </button>
                 );
               })}
             </div>

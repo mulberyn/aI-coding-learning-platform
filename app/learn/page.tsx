@@ -68,8 +68,22 @@ export default async function LearnPage({ searchParams }: LearnPageProps) {
 
   return (
     <main className="min-h-screen bg-background pt-16">
-      <TopNavBar />
+      <TopNavBar
+        signedIn={!!session}
+        userId={session?.user?.id}
+        userName={session?.user?.name}
+      />
       <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+        <div className="mb-6">
+          <Link
+            href={`/problems/${problem.slug}`}
+            className="inline-flex items-center gap-2 text-sm text-muted hover:text-foreground transition-colors"
+          >
+            <span>←</span>
+            返回题目详情
+          </Link>
+        </div>
+
         <div className="mb-8">
           <h1 className="text-2xl font-semibold text-foreground">
             {problem.title} - 学习
@@ -81,17 +95,9 @@ export default async function LearnPage({ searchParams }: LearnPageProps) {
 
         <LearningSubmissionsList
           problemId={problem.id}
+          problemSlug={problem.slug}
           userId={session.user.id}
         />
-
-        <div className="mt-8">
-          <Link
-            href={`/problems/${problem.slug}`}
-            className="rounded-lg border border-ui px-3 py-2 text-sm text-foreground hover:bg-panel-strong"
-          >
-            返回题目详情
-          </Link>
-        </div>
       </div>
     </main>
   );
