@@ -75,6 +75,8 @@ export async function POST(request: NextRequest) {
     const incomingMessages: unknown[] = Array.isArray(body?.messages)
       ? body.messages
       : [];
+    const context =
+      typeof body?.context === "string" ? body.context.trim() : "";
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -122,6 +124,16 @@ export async function POST(request: NextRequest) {
 
     const messages: ChatMessage[] = [
       { role: "system", content: systemPrompt },
+      ...(context
+        ? [
+            {
+              role: "system" as const,
+              content:
+                "以下是用户额外提供的参考资料，仅用于辅助回答，不要逐字复述，除非回答需要引用：\n\n" +
+                context,
+            },
+          ]
+        : []),
       ...incomingMessages
         .filter(
           (

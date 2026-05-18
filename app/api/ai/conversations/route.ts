@@ -161,17 +161,59 @@ function normalizeMessage(message: unknown) {
   };
 }
 
+function tryParseJson(value: unknown): unknown {
+  if (typeof value !== "string") {
+    return value;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return value;
+  }
+
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    return value;
+  }
+}
+
+function resolveRawMessagesInput(rawMessages: unknown): unknown {
+  let current = rawMessages;
+
+  // Handle legacy rows where messages may be JSON encoded multiple times.
+  for (let i = 0; i < 3; i += 1) {
+    const parsed = tryParseJson(current);
+    if (parsed === current) {
+      break;
+    }
+    current = parsed;
+  }
+
+  return current;
+}
+
 function normalizeConversationMessages(
   rawMessages: unknown,
 ): NormalizedConversationMessage[] {
-  if (Array.isArray(rawMessages)) {
-    return rawMessages.map(normalizeMessage).filter(Boolean);
+  const resolvedMessages = resolveRawMessagesInput(rawMessages);
+
+  if (Array.isArray(resolvedMessages)) {
+    return resolvedMessages
+      .map(normalizeMessage)
+      .filter((message): message is NormalizedConversationMessage =>
+        Boolean(message),
+      );
   }
 
-  if (rawMessages && typeof rawMessages === "object") {
-    const wrapped = rawMessages as { messages?: unknown };
+  if (resolvedMessages && typeof resolvedMessages === "object") {
+    const wrapped = resolvedMessages as { messages?: unknown };
     if (Array.isArray(wrapped.messages)) {
-      return wrapped.messages.map(normalizeMessage).filter(Boolean);
+      return wrapped.messages
+        .map(normalizeMessage)
+        .filter((message): message is NormalizedConversationMessage =>
+          Boolean(message),
+        );
     }
   }
 
@@ -226,14 +268,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({
     items: list.map((item) => ({
       ...item,
-      messages: (() => {
-        try {
-          const parsed = JSON.parse(item.messages) as unknown;
-          return normalizeConversationMessages(parsed);
-        } catch {
-          return [];
-        }
-      })(),
+      messages: normalizeConversationMessages(item.messages),
     })),
   });
 }

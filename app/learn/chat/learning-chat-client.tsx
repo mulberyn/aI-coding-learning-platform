@@ -1,26 +1,26 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeKatex from "rehype-katex";
 import remarkMath from "remark-math";
 import {
+  Bot,
   BookOpen,
-  ChevronRight,
+  ChevronDown,
+  FileText,
   Lightbulb,
-  MessageSquare,
+  MessageSquareText,
   Plus,
   Send,
   Sparkles,
-  GraduationCap,
-  Bot,
-  Trash2,
+  Upload,
+  X,
 } from "lucide-react";
 
 type ChatMessage = {
   role: "user" | "assistant" | "system";
   content: string;
-  promptText?: string | null;
   attachments?: Array<{
     id: string;
     type: "selection" | "preset";
@@ -29,49 +29,73 @@ type ChatMessage = {
   }>;
 };
 
-type SavedItem = {
+type Conversation = {
   id: string;
   title: string;
   messages: ChatMessage[];
   createdAt: string;
+  updatedAt?: string;
+};
+
+type ConversationRow = {
+  id?: unknown;
+  title?: unknown;
+  messages?: unknown;
+  createdAt?: unknown;
+  updatedAt?: unknown;
 };
 
 type PresetOption = {
   title: string;
-  content: string;
+  detail: string;
+  prompt: string;
   icon: typeof Lightbulb;
 };
+
+type SelectedFile = {
+  id: string;
+  name: string;
+  content: string;
+};
+
+const DEFAULT_CONVERSATION_TITLE = "新建对话";
 
 const PRESET_OPTIONS: PresetOption[] = [
   {
     title: "我在学习过程中遇到了哪些薄弱点？",
-    content: "请基于我的做题与提交记录，分析我当前的薄弱点。",
+    detail: "分析当前做题、提交与学习行为中的短板。",
+    prompt: "请基于我的做题与提交记录，分析我当前的薄弱点。",
     icon: Lightbulb,
   },
   {
     title: "我应该优先学习哪些知识点？",
-    content: "请给出一个优先级清晰的学习建议列表。",
+    detail: "给出适合当前阶段的优先学习清单。",
+    prompt: "请给出一个优先级清晰的学习建议列表。",
     icon: BookOpen,
   },
   {
     title: "我有哪些题目是错的？",
-    content: "请帮助我回顾近期做错的题目并总结原因。",
-    icon: MessageSquare,
+    detail: "回顾近期错题并总结常见原因。",
+    prompt: "请帮助我回顾近期做错的题目并总结原因。",
+    icon: MessageSquareText,
   },
   {
     title: "信息教练 skill",
-    content: "使用信息教练 skill，对当前学习状态进行诊断。",
+    detail: "用信息教练 skill 诊断学习状态。",
+    prompt: "使用信息教练 skill，对当前学习状态进行诊断。",
     icon: Sparkles,
   },
   {
     title: "求职辅导 skill",
-    content: "使用求职辅导 skill，给出简历与面试准备建议。",
-    icon: GraduationCap,
+    detail: "结合简历与面试准备给出建议。",
+    prompt: "使用求职辅导 skill，给出简历与面试准备建议。",
+    icon: Bot,
   },
   {
     title: "学习规划 skill",
-    content: "使用学习规划 skill，制定未来两周的学习计划。",
-    icon: Bot,
+    detail: "生成未来两周的学习安排。",
+    prompt: "使用学习规划 skill，制定未来两周的学习计划。",
+    icon: FileText,
   },
 ];
 
@@ -79,32 +103,180 @@ function createId(prefix: string) {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     return `${prefix}-${crypto.randomUUID()}`;
   }
+
   return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-function renderMessageContent(content: string) {
+function formatDateTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function parseMaybeJson(value: unknown): unknown {
+  if (typeof value !== "string") {
+    return value;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return value;
+  }
+
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    return value;
+  }
+}
+
+function normalizeMessages(rawMessages: unknown): ChatMessage[] {
+  let candidate = rawMessages;
+
+  for (let index = 0; index < 3; index += 1) {
+    const parsed = parseMaybeJson(candidate);
+    if (parsed === candidate) {
+      break;
+    }
+    candidate = parsed;
+  }
+
+  if (candidate && typeof candidate === "object" && !Array.isArray(candidate)) {
+    const wrapped = candidate as { messages?: unknown };
+    if (Array.isArray(wrapped.messages)) {
+      candidate = wrapped.messages;
+    }
+  }
+
+  if (!Array.isArray(candidate)) {
+    return [];
+  }
+
+  return candidate
+    .map((message): ChatMessage | null => {
+      if (!message || typeof message !== "object") {
+        return null;
+      }
+
+      const value = message as {
+        role?: unknown;
+        content?: unknown;
+        attachments?: unknown;
+      };
+
+      const role =
+        typeof value.role === "string" &&
+        ["user", "assistant", "system"].includes(value.role)
+          ? (value.role as ChatMessage["role"])
+          : null;
+
+      const content = typeof value.content === "string" ? value.content : "";
+      if (!role || !content.trim()) {
+        return null;
+      }
+
+      const attachments = Array.isArray(value.attachments)
+        ? value.attachments
+            .filter((item) => item && typeof item === "object")
+            .map((item) => {
+              const attachment = item as {
+                id?: unknown;
+                type?: unknown;
+                title?: unknown;
+                content?: unknown;
+              };
+
+              return {
+                id:
+                  typeof attachment.id === "string" && attachment.id.trim()
+                    ? attachment.id
+                    : createId("att"),
+                type: attachment.type === "selection" ? "selection" : "preset",
+                title:
+                  typeof attachment.title === "string" ? attachment.title : "",
+                content:
+                  typeof attachment.content === "string"
+                    ? attachment.content
+                    : "",
+              };
+            })
+        : undefined;
+
+      return {
+        role,
+        content,
+        attachments,
+      };
+    })
+    .filter((message): message is ChatMessage => Boolean(message));
+}
+
+function normalizeConversation(row: ConversationRow): Conversation | null {
+  const id = typeof row.id === "string" ? row.id : "";
+  if (!id) {
+    return null;
+  }
+
+  return {
+    id,
+    title:
+      typeof row.title === "string" && row.title.trim()
+        ? row.title
+        : DEFAULT_CONVERSATION_TITLE,
+    messages: normalizeMessages(row.messages),
+    createdAt:
+      typeof row.createdAt === "string" && row.createdAt.trim()
+        ? row.createdAt
+        : new Date().toISOString(),
+    updatedAt:
+      typeof row.updatedAt === "string" && row.updatedAt.trim()
+        ? row.updatedAt
+        : undefined,
+  };
+}
+
+function normalizeConversationList(rawItems: unknown): Conversation[] {
+  if (!Array.isArray(rawItems)) {
+    return [];
+  }
+
+  return rawItems
+    .map((item) => normalizeConversation(item as ConversationRow))
+    .filter((item): item is Conversation => Boolean(item));
+}
+
+function MarkdownContent({ content }: { content: string }) {
   return (
     <ReactMarkdown
       remarkPlugins={[remarkMath]}
       rehypePlugins={[rehypeKatex]}
       components={{
-        p: ({ children }) => <p className="m-0">{children}</p>,
+        p: ({ children }) => <p className="m-0 leading-6">{children}</p>,
         ul: ({ children }) => (
-          <ul className="m-0 list-disc pl-5">{children}</ul>
+          <ul className="m-0 list-disc space-y-1 pl-5">{children}</ul>
         ),
         ol: ({ children }) => (
-          <ol className="m-0 list-decimal pl-5">{children}</ol>
+          <ol className="m-0 list-decimal space-y-1 pl-5">{children}</ol>
         ),
-        li: ({ children }) => <li className="mt-1 first:mt-0">{children}</li>,
+        li: ({ children }) => <li>{children}</li>,
         a: ({ children, ...props }) => (
-          <a {...props} className="text-primary underline underline-offset-2">
+          <a {...props} className="text-sky-600 underline underline-offset-2">
             {children}
           </a>
         ),
         code: ({ inline, children, ...props }: any) =>
           inline ? (
             <code
-              className="rounded border border-ui bg-panel-strong px-1.5 py-0.5 text-[0.88em]"
+              className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[0.9em] text-slate-800"
               {...props}
             >
               {children}
@@ -113,12 +285,12 @@ function renderMessageContent(content: string) {
             <code {...props}>{children}</code>
           ),
         pre: ({ children }) => (
-          <pre className="overflow-x-auto rounded border border-ui bg-panel p-3">
+          <pre className="overflow-x-auto rounded-[10px] border border-slate-200 bg-slate-50 p-3 text-sm text-slate-800">
             {children}
           </pre>
         ),
         blockquote: ({ children }) => (
-          <blockquote className="border-l-2 border-ui pl-3 text-muted">
+          <blockquote className="border-l-2 border-slate-300 pl-3 text-slate-600">
             {children}
           </blockquote>
         ),
@@ -129,8 +301,7 @@ function renderMessageContent(content: string) {
   );
 }
 
-// Message bubble with arrow indicator
-function MessageBubble({
+function ChatBubble({
   message,
   isUser,
 }: {
@@ -138,55 +309,52 @@ function MessageBubble({
   isUser: boolean;
 }) {
   return (
-    <div className={`flex ${isUser ? "justify-end" : "justify-start"} gap-2`}>
-      <div className={`relative max-w-[70%]`}>
-        {/* Arrow indicator */}
-        <div
-          className={`absolute top-2 ${isUser ? "-right-2" : "-left-2"} w-3 h-3 bg-inherit`}
-          style={{
-            borderRadius: isUser ? "0 4px 0 0" : "4px 0 0 0",
-            backgroundColor: isUser
-              ? "rgb(239, 246, 255)"
-              : "var(--color-bg-panel)",
-            border: isUser
-              ? "1px solid rgb(191, 215, 255)"
-              : "1px solid var(--color-border-ui)",
-            borderRight: isUser ? "none" : undefined,
-            borderBottom: isUser ? "none" : undefined,
-            borderLeft: !isUser ? "none" : undefined,
-            borderTop: !isUser ? "none" : undefined,
-          }}
+    <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
+      <div className="relative max-w-[min(42rem,88%)]">
+        <span
+          aria-hidden="true"
+          className={`absolute top-4 h-3 w-3 rotate-45 border ${
+            isUser
+              ? "-right-1.5 border-r border-t border-sky-200 bg-sky-50"
+              : "-left-1.5 border-l border-b border-slate-200 bg-white"
+          }`}
         />
 
-        {/* Message bubble */}
         <div
-          className={`rounded-[8px] border px-3 py-2 ${
-            isUser ? "border-[#bfd7ff] bg-[#eff6ff]" : "border-ui bg-panel"
+          className={`rounded-[10px] border px-4 py-3 text-[0.96rem] shadow-sm ${
+            isUser
+              ? "border-sky-200 bg-sky-50 text-slate-800"
+              : "border-slate-200 bg-white text-slate-800"
           }`}
         >
+          <div className="mb-2 flex items-center justify-between gap-3 text-xs text-slate-500">
+            <span className="font-medium text-slate-600">
+              {isUser ? "我" : "AI"}
+            </span>
+          </div>
+
           {message.attachments && message.attachments.length > 0 && (
-            <div className="mb-2 space-y-1">
-              {message.attachments.map((att) => (
-                <div
-                  key={att.id}
-                  className="rounded-[6px] border border-ui bg-background px-2 py-1 text-xs"
+            <div className="mb-3 flex flex-wrap gap-2">
+              {message.attachments.map((attachment) => (
+                <span
+                  key={attachment.id}
+                  className={`inline-flex items-center gap-1 rounded-[6px] border px-2 py-1 text-xs ${
+                    attachment.type === "selection"
+                      ? "border-slate-200 bg-slate-50 text-slate-600"
+                      : "border-sky-200 bg-sky-50 text-sky-700"
+                  }`}
                 >
-                  <div className="font-semibold">{att.title}</div>
-                  {att.type === "preset" && (
-                    <div className="mt-0.5 text-muted line-clamp-2">
-                      {att.content}
-                    </div>
-                  )}
-                  {att.type === "selection" && (
-                    <div className="mt-0.5 text-muted">📎 {att.content}</div>
-                  )}
-                </div>
+                  <FileText size={12} />
+                  <span className="max-w-[18rem] truncate">
+                    {attachment.title}
+                  </span>
+                </span>
               ))}
             </div>
           )}
 
-          <div className="prose prose-sm dark:prose-invert max-w-none">
-            {renderMessageContent(message.content)}
+          <div className="prose prose-sm max-w-none dark:prose-invert prose-p:my-0 prose-ul:my-0 prose-ol:my-0 prose-li:my-0">
+            <MarkdownContent content={message.content} />
           </div>
         </div>
       </div>
@@ -195,509 +363,553 @@ function MessageBubble({
 }
 
 export function LearningChatClient() {
-  const [items, setItems] = useState<SavedItem[]>([]);
-  const [selected, setSelected] = useState<SavedItem | null>(null);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [selectedConversationId, setSelectedConversationId] = useState<
+    string | null
+  >(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [inputText, setInputText] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const [draftText, setDraftText] = useState("");
+  const [presetPanelOpen, setPresetPanelOpen] = useState(true);
   const [selectedPresets, setSelectedPresets] = useState<PresetOption[]>([]);
-  const [uploadedFiles, setUploadedFiles] = useState<
-    { name: string; content: string }[]
-  >([]);
-  const [showPresets, setShowPresets] = useState(false);
+  const [selectedFiles, setSelectedFiles] = useState<SelectedFile[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  function syncConversationToItems(nextConversation: SavedItem) {
-    setItems((prev) =>
-      prev.map((item) =>
-        item.id === nextConversation.id
-          ? { ...item, ...nextConversation }
-          : item,
-      ),
-    );
-  }
+  const selectedConversation = useMemo(
+    () =>
+      conversations.find(
+        (conversation) => conversation.id === selectedConversationId,
+      ) ?? null,
+    [conversations, selectedConversationId],
+  );
 
-  async function handleSelectConversation(item: SavedItem) {
-    setSelected(item);
-    setSelectedPresets([]);
-    setUploadedFiles([]);
-    setInputText("");
-    setShowPresets(false);
+  const hasComposerContent =
+    draftText.trim().length > 0 ||
+    selectedPresets.length > 0 ||
+    selectedFiles.length > 0;
 
-    if (item.messages.length > 0) {
-      return;
-    }
-
+  async function loadConversations() {
+    setIsLoading(true);
     try {
-      const resp = await fetch("/api/ai/conversations", {
-        cache: "no-store",
-      });
+      const resp = await fetch("/api/ai/conversations", { cache: "no-store" });
       if (!resp.ok) {
+        setConversations([]);
+        setSelectedConversationId(null);
         return;
       }
 
-      const data = (await resp.json()) as { items?: SavedItem[] };
-      const nextItems = data.items ?? [];
-      setItems(nextItems);
-
-      const latest = nextItems.find((candidate) => candidate.id === item.id);
-      if (latest) {
-        setSelected(latest);
-      }
+      const data = (await resp.json()) as { items?: unknown };
+      const nextConversations = normalizeConversationList(data.items);
+      setConversations(nextConversations);
+      setSelectedConversationId(nextConversations[0]?.id ?? null);
     } catch (error) {
-      console.error("Failed to reload conversation:", error);
+      console.error("Failed to load conversations:", error);
+      setConversations([]);
+      setSelectedConversationId(null);
+    } finally {
+      setIsLoading(false);
     }
   }
 
-  // Load conversations on mount
   useEffect(() => {
-    void (async () => {
-      setIsLoading(true);
-      try {
-        const resp = await fetch("/api/ai/conversations", {
-          cache: "no-store",
-        });
-        if (!resp.ok) {
-          setItems([]);
-          setSelected(null);
-          return;
-        }
-        const data = (await resp.json()) as { items?: SavedItem[] };
-        const nextItems = data.items ?? [];
-        setItems(nextItems);
-        if (nextItems.length > 0) {
-          setSelected(nextItems[0]);
-        }
-      } catch (error) {
-        console.error("Failed to load conversations:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    })();
+    void loadConversations();
   }, []);
 
-  // Auto-scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [selected?.messages]);
+  }, [selectedConversation?.messages.length]);
 
-  // Create new conversation
-  async function createNewConversation() {
-    const newConversation: SavedItem = {
-      id: createId("conv"),
-      title: "新建对话",
-      messages: [],
-      createdAt: new Date().toISOString(),
-    };
-    setItems((prev) => [newConversation, ...prev]);
-    setSelected(newConversation);
+  function resetComposer() {
+    setDraftText("");
     setSelectedPresets([]);
-    setUploadedFiles([]);
-    setInputText("");
+    setSelectedFiles([]);
+    setPresetPanelOpen(false);
   }
 
-  // Handle file upload
-  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  async function persistConversation(nextConversation: Conversation) {
+    const resp = await fetch("/api/ai/conversations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: nextConversation.id,
+        title: nextConversation.title,
+        messages: nextConversation.messages,
+      }),
+    });
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const content = event.target?.result as string;
-      setUploadedFiles((prev) => [...prev, { name: file.name, content }]);
+    if (!resp.ok) {
+      throw new Error("Failed to persist conversation");
+    }
+  }
+
+  async function createNewConversation() {
+    const nextConversation: Conversation = {
+      id: createId("conv"),
+      title: DEFAULT_CONVERSATION_TITLE,
+      messages: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     };
-    reader.readAsText(file);
+
+    setConversations((prev) => [nextConversation, ...prev]);
+    setSelectedConversationId(nextConversation.id);
+    resetComposer();
+
+    try {
+      await persistConversation(nextConversation);
+    } catch (error) {
+      console.error("Failed to create conversation:", error);
+    }
+  }
+
+  function selectConversation(id: string) {
+    setSelectedConversationId(id);
+    resetComposer();
+  }
+
+  function togglePreset(preset: PresetOption) {
+    setSelectedPresets((prev) => {
+      const exists = prev.some((item) => item.title === preset.title);
+      if (exists) {
+        return prev.filter((item) => item.title !== preset.title);
+      }
+
+      return [...prev, preset];
+    });
+  }
+
+  async function handleFileSelect(event: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(event.target.files ?? []);
+    if (files.length === 0) {
+      return;
+    }
+
+    const nextFiles = await Promise.all(
+      files.map(async (file) => ({
+        id: createId("skill"),
+        name: file.name,
+        content: await file.text(),
+      })),
+    );
+
+    setSelectedFiles((prev) => [...prev, ...nextFiles]);
 
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
   }
 
-  // Remove uploaded file
-  function removeFile(index: number) {
-    setUploadedFiles((prev) => prev.filter((_, i) => i !== index));
+  function removeFile(fileId: string) {
+    setSelectedFiles((prev) => prev.filter((item) => item.id !== fileId));
   }
 
-  // Delete conversation
-  async function deleteConversation(id: string) {
-    if (!confirm("确定要删除这个对话吗？此操作无法撤销。")) {
-      return;
-    }
-    try {
-      const resp = await fetch(`/api/ai/conversations/${id}`, {
-        method: "DELETE",
-      });
-      if (!resp.ok) {
-        console.error("Failed to delete conversation");
-        alert("删除失败，请重试");
-        return;
-      }
-      // Remove from local list
-      setItems((prev) => prev.filter((item) => item.id !== id));
-      // Clear selection if it was the selected one
-      if (selected?.id === id) {
-        setSelected(null);
-        setInputText("");
-        setSelectedPresets([]);
-        setUploadedFiles([]);
-      }
-    } catch (error) {
-      console.error("Failed to delete conversation:", error);
-      alert("删除失败，请重试");
-    }
-  }
-
-  // Toggle preset selection
-  function togglePreset(preset: PresetOption) {
-    setSelectedPresets((prev) => {
-      const exists = prev.some((p) => p.title === preset.title);
-      if (exists) {
-        return prev.filter((p) => p.title !== preset.title);
-      }
-      return [...prev, preset];
-    });
-  }
-
-  // Send message
-  async function sendMessage() {
+  async function maybeGenerateConversationTitle(
+    conversation: Conversation,
+    promptSeed: string,
+  ) {
     if (
-      !selected ||
-      (!inputText.trim() &&
-        selectedPresets.length === 0 &&
-        uploadedFiles.length === 0)
+      conversation.title &&
+      conversation.title !== DEFAULT_CONVERSATION_TITLE
     ) {
+      return conversation.title;
+    }
+
+    const resp = await fetch("/api/ai/generate-name", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: promptSeed }),
+    });
+
+    if (!resp.ok) {
+      return promptSeed.slice(0, 16) || DEFAULT_CONVERSATION_TITLE;
+    }
+
+    const data = (await resp.json()) as { title?: unknown };
+    const nextTitle = typeof data.title === "string" ? data.title.trim() : "";
+
+    return nextTitle || promptSeed.slice(0, 16) || DEFAULT_CONVERSATION_TITLE;
+  }
+
+  async function sendMessage() {
+    const conversation = selectedConversation;
+    if (!conversation || isSending || !hasComposerContent) {
       return;
     }
+
+    const attachmentSummaries = [
+      ...selectedPresets.map((preset) => ({
+        id: createId("att"),
+        type: "preset" as const,
+        title: preset.title,
+        content: preset.prompt,
+      })),
+      ...selectedFiles.map((file) => ({
+        id: createId("att"),
+        type: "selection" as const,
+        title: file.name,
+        content: file.name,
+      })),
+    ];
+
+    const userText =
+      draftText.trim() || selectedPresets.map((item) => item.title).join("；");
+    const contextText = [
+      selectedPresets.map((preset) => preset.prompt).join("\n\n"),
+      selectedFiles
+        .map((file) => `【skill 文件：${file.name}】\n${file.content.trim()}`)
+        .join("\n\n"),
+    ]
+      .filter((item) => item.trim().length > 0)
+      .join("\n\n---\n\n");
+
+    const userMessage: ChatMessage = {
+      role: "user",
+      content: userText,
+      attachments:
+        attachmentSummaries.length > 0 ? attachmentSummaries : undefined,
+    };
+
+    const messagesAfterUser = [...conversation.messages, userMessage];
+    const nextConversationAfterUser: Conversation = {
+      ...conversation,
+      messages: messagesAfterUser,
+      updatedAt: new Date().toISOString(),
+    };
+
+    setConversations((prev) =>
+      prev.map((item) =>
+        item.id === conversation.id ? nextConversationAfterUser : item,
+      ),
+    );
 
     setIsSending(true);
 
     try {
-      // Build user message content
-      let userContent = inputText.trim();
-      const attachments: ChatMessage["attachments"] = [];
-
-      // Add preset options as attachments
-      for (const preset of selectedPresets) {
-        attachments.push({
-          id: createId("att"),
-          type: "preset",
-          title: preset.title,
-          content: preset.content,
-        });
-      }
-
-      // Add uploaded files as attachments
-      for (const file of uploadedFiles) {
-        attachments.push({
-          id: createId("att"),
-          type: "selection",
-          title: file.name,
-          content: file.name, // Display filename only
-        });
-      }
-
-      // If no text input, use first preset content
-      if (!userContent && selectedPresets.length > 0) {
-        userContent = selectedPresets[0].content;
-      }
-
-      if (!userContent) return;
-
-      // Add user message to local state
-      const userMessage: ChatMessage = {
-        role: "user",
-        content: userContent,
-        attachments: attachments.length > 0 ? attachments : undefined,
-      };
-
-      const messagesAfterUser = [...selected.messages, userMessage];
-      const nextConversationAfterUser = {
-        ...selected,
-        messages: messagesAfterUser,
-      };
-
-      setSelected(nextConversationAfterUser);
-      syncConversationToItems(nextConversationAfterUser);
-
-      // Call AI API
-      const chatResponse = await fetch("/api/ai/chat", {
+      const chatResp = await fetch("/api/ai/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           messages: messagesAfterUser,
-          context: uploadedFiles.map((f) => f.content).join("\n---\n"),
+          context: contextText,
         }),
       });
 
-      if (!chatResponse.ok) {
+      if (!chatResp.ok) {
         throw new Error("Failed to get AI response");
       }
 
-      const aiResponse = (await chatResponse.json()) as { content?: string };
-      const assistantContent =
-        aiResponse.content || "Sorry, I couldn't generate a response.";
-
-      // Add assistant message to local state
+      const chatData = (await chatResp.json()) as { content?: unknown };
       const assistantMessage: ChatMessage = {
         role: "assistant",
-        content: assistantContent,
+        content:
+          typeof chatData.content === "string" && chatData.content.trim()
+            ? chatData.content
+            : "暂时没有生成内容，请稍后再试。",
       };
 
       const messagesAfterAssistant = [...messagesAfterUser, assistantMessage];
-      const nextConversationAfterAssistant = {
-        ...selected,
+      let nextTitle = conversation.title;
+      if (conversation.title === DEFAULT_CONVERSATION_TITLE) {
+        nextTitle = await maybeGenerateConversationTitle(
+          { ...conversation, messages: messagesAfterAssistant },
+          [
+            userText,
+            ...selectedPresets.map((preset) => preset.title),
+            ...selectedFiles.map((file) => file.name),
+          ]
+            .filter(Boolean)
+            .join(" | "),
+        );
+      }
+
+      const nextConversation: Conversation = {
+        ...conversation,
+        title: nextTitle,
         messages: messagesAfterAssistant,
+        updatedAt: new Date().toISOString(),
       };
 
-      setSelected(nextConversationAfterAssistant);
-      syncConversationToItems(nextConversationAfterAssistant);
+      setConversations((prev) =>
+        prev.map((item) =>
+          item.id === conversation.id ? nextConversation : item,
+        ),
+      );
 
-      // Save updated conversation
-      await fetch("/api/ai/conversations", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: selected.id,
-          title: selected.title,
-          messages: messagesAfterAssistant,
-        }),
-      });
-
-      // Clear input
-      setInputText("");
-      setSelectedPresets([]);
-      setUploadedFiles([]);
+      await persistConversation(nextConversation);
+      resetComposer();
     } catch (error) {
       console.error("Failed to send message:", error);
+      setConversations((prev) =>
+        prev.map((item) => (item.id === conversation.id ? conversation : item)),
+      );
     } finally {
       setIsSending(false);
     }
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-      <div className="flex h-[calc(100vh-120px)] gap-6 -mx-4 sm:-mx-6 lg:-mx-8">
-        {/* Left Sidebar - Conversation History */}
-        <div className="w-64 border-r border-ui bg-background p-4 flex flex-col">
+    <div className="mx-auto flex min-h-[calc(100vh-120px)] w-full max-w-7xl overflow-hidden px-4 sm:px-6 lg:px-8">
+      <aside className="flex w-[300px] shrink-0 flex-col border-r border-slate-200/80 bg-white/80 backdrop-blur">
+        <div className="border-b border-slate-200/80 px-4 py-4">
           <button
+            type="button"
             onClick={createNewConversation}
-            className="mb-4 flex items-center gap-2 rounded-[6px] bg-primary px-3 py-2 text-sm font-medium text-white hover:opacity-90"
+            className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-sky-100 px-3 text-sm font-medium text-sky-700 transition-colors hover:bg-sky-200"
           >
             <Plus size={16} />
-            新建对话
+            创建新对话
           </button>
-
-          <div className="flex-1 overflow-y-auto space-y-2">
-            {isLoading ? (
-              <div className="text-xs text-muted">加载中...</div>
-            ) : items.length === 0 ? (
-              <div className="text-xs text-muted">暂无已保存对话</div>
-            ) : (
-              items.map((item) => (
-                <div
-                  key={item.id}
-                  className={`group flex items-start gap-2 rounded-[6px] border px-3 py-2 transition-colors ${
-                    selected?.id === item.id
-                      ? "border-primary bg-primary/5"
-                      : "border-ui hover:bg-panel"
-                  }`}
-                >
-                  <button
-                    onClick={() => {
-                      void handleSelectConversation(item);
-                    }}
-                    className="flex-1 text-left"
-                  >
-                    <div className="truncate font-medium">{item.title}</div>
-                    <div className="mt-1 text-xs text-muted">
-                      {new Date(item.createdAt).toLocaleDateString()}
-                    </div>
-                  </button>
-                  <button
-                    onClick={() => deleteConversation(item.id)}
-                    className="shrink-0 rounded-[4px] p-1 text-muted opacity-0 transition-opacity hover:bg-panel hover:text-destructive group-hover:opacity-100"
-                    title="删除对话"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-              ))
-            )}
-          </div>
         </div>
 
-        {/* Right Panel - Chat Display & Input */}
-        <div className="flex-1 flex flex-col bg-background">
-          {selected ? (
-            <>
-              {/* Chat Messages Area */}
-              <div className="flex-1 overflow-y-auto p-6 space-y-4">
-                {selected.messages.length === 0 ? (
-                  <div className="flex items-center justify-center h-full">
-                    <div className="text-center text-muted">
-                      <div className="text-lg font-medium">开始新对话</div>
-                      <div className="text-sm mt-2">
-                        在下方输入框中输入您的问题或选择预设选项
-                      </div>
+        <div className="flex-1 overflow-y-auto px-3 py-3">
+          <div className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+            对话历史
+          </div>
+
+          {isLoading ? (
+            <div className="px-2 py-3 text-sm text-slate-500">正在加载...</div>
+          ) : conversations.length === 0 ? (
+            <div className="rounded-[10px] border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-sm text-slate-500">
+              还没有保存的对话，先创建一个新的开始聊天。
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {conversations.map((conversation) => {
+                const active = conversation.id === selectedConversationId;
+                return (
+                  <button
+                    key={conversation.id}
+                    type="button"
+                    onClick={() => selectConversation(conversation.id)}
+                    className={`w-full rounded-[10px] border px-3 py-3 text-left transition-colors ${
+                      active
+                        ? "border-sky-200 bg-sky-50"
+                        : "border-slate-200 bg-white hover:bg-slate-50"
+                    }`}
+                  >
+                    <div className="truncate text-sm font-medium text-slate-800">
+                      {conversation.title}
+                    </div>
+                    <div className="mt-1 text-xs text-slate-500">
+                      {formatDateTime(conversation.createdAt)}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </aside>
+
+      <section className="flex min-w-0 flex-1 flex-col bg-white/60">
+        {selectedConversation ? (
+          <>
+            <header className="border-b border-slate-200/80 px-6 py-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <div className="text-lg font-semibold text-slate-900">
+                    {selectedConversation.title}
+                  </div>
+                  <div className="mt-1 text-sm text-slate-500">
+                    创建于 {formatDateTime(selectedConversation.createdAt)}
+                  </div>
+                </div>
+
+                <div className="text-sm text-slate-500">
+                  {selectedConversation.messages.length > 0
+                    ? `${selectedConversation.messages.length} 条消息`
+                    : "空白对话"}
+                </div>
+              </div>
+            </header>
+
+            <div className="flex-1 overflow-y-auto px-6 py-6">
+              {selectedConversation.messages.filter(
+                (item) => item.role !== "system",
+              ).length === 0 ? (
+                <div className="flex h-full items-center justify-center py-16 text-center text-slate-500">
+                  <div>
+                    <div className="text-lg font-medium text-slate-700">
+                      开始一段新的对话
+                    </div>
+                    <div className="mt-2 text-sm">
+                      先从下方选择一个预设问题，或者直接输入你的问题。
                     </div>
                   </div>
-                ) : (
-                  selected.messages
-                    .filter((m) => m.role !== "system")
-                    .map((msg, idx) => (
-                      <MessageBubble
-                        key={idx}
-                        message={msg}
-                        isUser={msg.role === "user"}
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {selectedConversation.messages
+                    .filter((item) => item.role !== "system")
+                    .map((message, index) => (
+                      <ChatBubble
+                        key={`${selectedConversation.id}-${index}`}
+                        message={message}
+                        isUser={message.role === "user"}
                       />
-                    ))
-                )}
-                <div ref={messagesEndRef} />
-              </div>
+                    ))}
+                </div>
+              )}
+              <div ref={messagesEndRef} />
+            </div>
 
-              {/* Input Area */}
-              <div className="border-t border-ui bg-panel p-4 space-y-3">
-                {/* Preset Options */}
-                {showPresets && (
-                  <div className="grid grid-cols-2 gap-2 p-3 rounded-[8px] border border-ui bg-background">
+            <footer className="border-t border-slate-200/80 bg-white/95 px-6 py-4 backdrop-blur">
+              <div className="space-y-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPresetPanelOpen((prev) => !prev)}
+                    className="inline-flex h-9 items-center gap-1 rounded-[8px] border border-slate-200 bg-white px-3 text-sm text-slate-700 transition-colors hover:bg-slate-50"
+                  >
+                    预设问题
+                    <ChevronDown
+                      size={14}
+                      className={`transition-transform ${presetPanelOpen ? "rotate-180" : ""}`}
+                    />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="inline-flex h-9 items-center gap-1 rounded-[8px] border border-slate-200 bg-white px-3 text-sm text-slate-700 transition-colors hover:bg-slate-50"
+                  >
+                    <Upload size={14} />
+                    上传 skill
+                  </button>
+
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".md"
+                    multiple
+                    className="hidden"
+                    onChange={(event) => {
+                      void handleFileSelect(event);
+                    }}
+                  />
+
+                  <div className="ml-auto text-xs text-slate-400">
+                    Ctrl + Enter 发送
+                  </div>
+                </div>
+
+                {presetPanelOpen ? (
+                  <div className="grid gap-2 rounded-[10px] border border-slate-200 bg-slate-50 p-3 sm:grid-cols-2 xl:grid-cols-3">
                     {PRESET_OPTIONS.map((preset) => {
-                      const IconComponent = preset.icon;
-                      const isSelected = selectedPresets.some(
-                        (p) => p.title === preset.title,
+                      const Icon = preset.icon;
+                      const active = selectedPresets.some(
+                        (item) => item.title === preset.title,
                       );
+
                       return (
                         <button
                           key={preset.title}
+                          type="button"
                           onClick={() => togglePreset(preset)}
-                          className={`flex items-start gap-2 rounded-[6px] border p-2 text-left text-sm transition-colors ${
-                            isSelected
-                              ? "border-primary bg-primary/10"
-                              : "border-ui hover:bg-panel"
+                          className={`flex items-start gap-2 rounded-[8px] border p-3 text-left transition-colors ${
+                            active
+                              ? "border-sky-200 bg-sky-50"
+                              : "border-slate-200 bg-white hover:bg-slate-50"
                           }`}
                         >
-                          <IconComponent
-                            size={16}
-                            className="mt-0.5 flex-shrink-0"
-                          />
-                          <span className="line-clamp-2">{preset.title}</span>
+                          <span className="mt-0.5 rounded-[6px] bg-slate-100 p-1.5 text-slate-700">
+                            <Icon size={14} />
+                          </span>
+                          <span className="min-w-0">
+                            <span className="block text-sm font-medium text-slate-800">
+                              {preset.title}
+                            </span>
+                            <span className="mt-1 block text-xs leading-5 text-slate-500">
+                              {preset.detail}
+                            </span>
+                          </span>
                         </button>
                       );
                     })}
                   </div>
-                )}
+                ) : null}
 
-                {/* Selected Presets Display */}
-                {selectedPresets.length > 0 && (
+                {selectedPresets.length > 0 || selectedFiles.length > 0 ? (
                   <div className="flex flex-wrap gap-2">
                     {selectedPresets.map((preset) => (
-                      <div
+                      <span
                         key={preset.title}
-                        className="inline-flex items-center gap-1 rounded-[4px] bg-primary/10 border border-primary/30 px-2 py-1 text-sm"
+                        className="inline-flex items-center gap-1 rounded-[8px] border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs text-sky-700"
                       >
-                        <span>{preset.title}</span>
+                        {preset.title}
                         <button
+                          type="button"
                           onClick={() => togglePreset(preset)}
-                          className="ml-1 text-primary hover:opacity-70"
+                          className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full hover:bg-sky-100"
                         >
-                          ×
+                          <X size={11} />
                         </button>
-                      </div>
+                      </span>
                     ))}
-                  </div>
-                )}
 
-                {/* Uploaded Files Display */}
-                {uploadedFiles.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    {uploadedFiles.map((file, idx) => (
-                      <div
-                        key={idx}
-                        className="inline-flex items-center gap-2 rounded-[4px] bg-blue-50 border border-blue-200 px-2 py-1 text-sm dark:bg-blue-900/20 dark:border-blue-800"
+                    {selectedFiles.map((file) => (
+                      <span
+                        key={file.id}
+                        className="inline-flex items-center gap-1 rounded-[8px] border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-600"
                       >
-                        <span>📎 {file.name}</span>
+                        <FileText size={12} />
+                        {file.name}
                         <button
-                          onClick={() => removeFile(idx)}
-                          className="text-blue-600 hover:opacity-70 dark:text-blue-400"
+                          type="button"
+                          onClick={() => removeFile(file.id)}
+                          className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full hover:bg-slate-100"
                         >
-                          ×
+                          <X size={11} />
                         </button>
-                      </div>
+                      </span>
                     ))}
                   </div>
-                )}
+                ) : null}
 
-                {/* Input Row */}
                 <div className="flex items-end gap-2">
-                  {/* Buttons - Presets and Upload */}
-                  <div className="flex gap-1">
-                    <button
-                      onClick={() => setShowPresets(!showPresets)}
-                      className="p-2 rounded-[4px] border border-ui hover:bg-panel transition-colors"
-                      title="预设选项"
-                    >
-                      <ChevronRight size={18} />
-                    </button>
-                    <button
-                      onClick={() => fileInputRef.current?.click()}
-                      className="p-2 rounded-[4px] border border-ui hover:bg-panel transition-colors"
-                      title="上传 Skill 文件"
-                    >
-                      📎
-                    </button>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept=".md"
-                      onChange={handleFileSelect}
-                      className="hidden"
-                    />
-                  </div>
-
-                  {/* Text Input */}
                   <textarea
-                    value={inputText}
-                    onChange={(e) => setInputText(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && e.ctrlKey) {
+                    value={draftText}
+                    onChange={(event) => setDraftText(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" && event.ctrlKey) {
+                        event.preventDefault();
                         void sendMessage();
                       }
                     }}
-                    placeholder="输入您的问题（Ctrl+Enter 发送）"
-                    className="flex-1 rounded-[6px] border border-ui bg-background px-3 py-2 resize-none focus:outline-none focus:ring-1 focus:ring-primary"
-                    rows={3}
+                    placeholder="输入你的问题，或先选一个预设问题 / skill"
+                    rows={4}
+                    className="min-h-[112px] flex-1 resize-none rounded-[8px] border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition-colors placeholder:text-slate-400 focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
                   />
 
-                  {/* Send Button */}
                   <button
-                    onClick={sendMessage}
-                    disabled={
-                      isSending ||
-                      (!inputText.trim() &&
-                        selectedPresets.length === 0 &&
-                        uploadedFiles.length === 0)
-                    }
-                    className="p-2 rounded-[4px] bg-primary text-white hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+                    type="button"
+                    onClick={() => {
+                      void sendMessage();
+                    }}
+                    disabled={isSending || !hasComposerContent}
+                    className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[8px] bg-sky-500 text-white transition-colors hover:bg-sky-600 disabled:cursor-not-allowed disabled:bg-slate-300"
+                    aria-label="发送消息"
                   >
                     <Send size={18} />
                   </button>
                 </div>
               </div>
-            </>
-          ) : (
-            <div className="flex items-center justify-center h-full">
-              <div className="text-center text-muted">
-                <div className="text-lg font-medium">
-                  选择一个对话或创建新对话
-                </div>
-                <div className="text-sm mt-2">
-                  左侧栏中的"新建对话"按钮可以创建新对话
-                </div>
+            </footer>
+          </>
+        ) : (
+          <div className="flex flex-1 items-center justify-center px-6 py-16 text-center text-slate-500">
+            <div>
+              <div className="text-lg font-medium text-slate-700">
+                选择一个对话或创建新对话
+              </div>
+              <div className="mt-2 text-sm">
+                左侧先创建会话，再在右侧继续追问、追加预设问题或上传 skill。
               </div>
             </div>
-          )}
-        </div>
-      </div>
+          </div>
+        )}
+      </section>
     </div>
   );
 }
