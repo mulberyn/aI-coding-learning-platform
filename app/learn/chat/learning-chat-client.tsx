@@ -208,6 +208,48 @@ export function LearningChatClient() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  function syncConversationToItems(nextConversation: SavedItem) {
+    setItems((prev) =>
+      prev.map((item) =>
+        item.id === nextConversation.id
+          ? { ...item, ...nextConversation }
+          : item,
+      ),
+    );
+  }
+
+  async function handleSelectConversation(item: SavedItem) {
+    setSelected(item);
+    setSelectedPresets([]);
+    setUploadedFiles([]);
+    setInputText("");
+    setShowPresets(false);
+
+    if (item.messages.length > 0) {
+      return;
+    }
+
+    try {
+      const resp = await fetch("/api/ai/conversations", {
+        cache: "no-store",
+      });
+      if (!resp.ok) {
+        return;
+      }
+
+      const data = (await resp.json()) as { items?: SavedItem[] };
+      const nextItems = data.items ?? [];
+      setItems(nextItems);
+
+      const latest = nextItems.find((candidate) => candidate.id === item.id);
+      if (latest) {
+        setSelected(latest);
+      }
+    } catch (error) {
+      console.error("Failed to reload conversation:", error);
+    }
+  }
+
   // Load conversations on mount
   useEffect(() => {
     void (async () => {
@@ -369,23 +411,21 @@ export function LearningChatClient() {
         attachments: attachments.length > 0 ? attachments : undefined,
       };
 
-      setSelected((prev) => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          messages: [...prev.messages, userMessage],
-        };
-      });
+      const messagesAfterUser = [...selected.messages, userMessage];
+      const nextConversationAfterUser = {
+        ...selected,
+        messages: messagesAfterUser,
+      };
+
+      setSelected(nextConversationAfterUser);
+      syncConversationToItems(nextConversationAfterUser);
 
       // Call AI API
       const chatResponse = await fetch("/api/ai/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          messages: [
-            ...selected.messages,
-            { role: "user", content: userContent },
-          ],
+          messages: messagesAfterUser,
           context: uploadedFiles.map((f) => f.content).join("\n---\n"),
         }),
       });
@@ -404,13 +444,14 @@ export function LearningChatClient() {
         content: assistantContent,
       };
 
-      setSelected((prev) => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          messages: [...prev.messages, assistantMessage],
-        };
-      });
+      const messagesAfterAssistant = [...messagesAfterUser, assistantMessage];
+      const nextConversationAfterAssistant = {
+        ...selected,
+        messages: messagesAfterAssistant,
+      };
+
+      setSelected(nextConversationAfterAssistant);
+      syncConversationToItems(nextConversationAfterAssistant);
 
       // Save updated conversation
       await fetch("/api/ai/conversations", {
@@ -419,7 +460,7 @@ export function LearningChatClient() {
         body: JSON.stringify({
           id: selected.id,
           title: selected.title,
-          messages: [...selected.messages, userMessage, assistantMessage],
+          messages: messagesAfterAssistant,
         }),
       });
 
@@ -464,11 +505,7 @@ export function LearningChatClient() {
                 >
                   <button
                     onClick={() => {
-                      setSelected(item);
-                      setSelectedPresets([]);
-                      setUploadedFiles([]);
-                      setInputText("");
-                      setShowPresets(false);
+                      void handleSelectConversation(item);
                     }}
                     className="flex-1 text-left"
                   >

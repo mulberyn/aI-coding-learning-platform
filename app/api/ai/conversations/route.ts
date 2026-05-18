@@ -4,6 +4,104 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { Prisma } from "@prisma/client";
 
+type NormalizedAttachment = {
+  id: string;
+  type: "selection" | "preset";
+  title: string;
+  content: string;
+};
+
+type NormalizedConversationMessage = {
+  role: "user" | "assistant" | "system";
+  content: string;
+  promptText: string | null;
+  attachments: NormalizedAttachment[];
+};
+
+function parseMessageContent(value: unknown): string {
+  if (typeof value === "string") {
+    return value;
+  }
+
+  if (value && typeof value === "object") {
+    const objectValue = value as {
+      text?: unknown;
+      content?: unknown;
+      value?: unknown;
+    };
+
+    if (typeof objectValue.text === "string") {
+      return objectValue.text;
+    }
+
+    if (typeof objectValue.content === "string") {
+      return objectValue.content;
+    }
+
+    if (typeof objectValue.value === "string") {
+      return objectValue.value;
+    }
+  }
+
+  if (Array.isArray(value)) {
+    return value
+      .map((part) => {
+        if (typeof part === "string") {
+          return part;
+        }
+
+        if (!part || typeof part !== "object") {
+          return "";
+        }
+
+        const item = part as {
+          type?: unknown;
+          text?: unknown;
+          content?: unknown;
+        };
+
+        if (item.type === "text" && typeof item.text === "string") {
+          return item.text;
+        }
+
+        if (typeof item.text === "string") {
+          return item.text;
+        }
+
+        if (typeof item.content === "string") {
+          return item.content;
+        }
+
+        return "";
+      })
+      .filter((part) => part.length > 0)
+      .join("\n");
+  }
+
+  return "";
+}
+
+function normalizeRole(value: unknown): "user" | "assistant" | "system" | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const role = value.trim().toLowerCase();
+  if (role === "user" || role === "assistant" || role === "system") {
+    return role;
+  }
+
+  if (role === "human") {
+    return "user";
+  }
+
+  if (role === "ai" || role === "bot") {
+    return "assistant";
+  }
+
+  return null;
+}
+
 function normalizeMessage(message: unknown) {
   if (!message || typeof message !== "object") {
     return null;
@@ -12,26 +110,32 @@ function normalizeMessage(message: unknown) {
   const value = message as {
     role?: string;
     content?: unknown;
+    text?: unknown;
+    parts?: unknown;
     promptText?: unknown;
     attachments?: unknown;
   };
 
-  if (
-    value.role !== "user" &&
-    value.role !== "assistant" &&
-    value.role !== "system"
-  ) {
+  const role = normalizeRole(value.role);
+  if (!role) {
     return null;
   }
 
-  if (typeof value.content !== "string") {
+  const content = parseMessageContent(
+    value.content ?? value.text ?? value.parts,
+  );
+  const promptText =
+    typeof value.promptText === "string" ? value.promptText : null;
+  const finalContent = content.trim().length > 0 ? content : (promptText ?? "");
+
+  if (finalContent.trim().length === 0) {
     return null;
   }
 
   return {
-    role: value.role,
-    content: value.content,
-    promptText: typeof value.promptText === "string" ? value.promptText : null,
+    role,
+    content: finalContent,
+    promptText,
     attachments: Array.isArray(value.attachments)
       ? value.attachments
           .filter((attachment) => attachment && typeof attachment === "object")
@@ -55,6 +159,23 @@ function normalizeMessage(message: unknown) {
           })
       : [],
   };
+}
+
+function normalizeConversationMessages(
+  rawMessages: unknown,
+): NormalizedConversationMessage[] {
+  if (Array.isArray(rawMessages)) {
+    return rawMessages.map(normalizeMessage).filter(Boolean);
+  }
+
+  if (rawMessages && typeof rawMessages === "object") {
+    const wrapped = rawMessages as { messages?: unknown };
+    if (Array.isArray(wrapped.messages)) {
+      return wrapped.messages.map(normalizeMessage).filter(Boolean);
+    }
+  }
+
+  return [];
 }
 
 async function ensureConversationTable() {
@@ -107,7 +228,8 @@ export async function GET(request: NextRequest) {
       ...item,
       messages: (() => {
         try {
-          return JSON.parse(item.messages);
+          const parsed = JSON.parse(item.messages) as unknown;
+          return normalizeConversationMessages(parsed);
         } catch {
           return [];
         }
@@ -130,9 +252,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const id = String(body?.id ?? randomUUID());
     const title = String(body?.title ?? "未命名对话");
-    const messages = Array.isArray(body?.messages)
-      ? body.messages.map(normalizeMessage).filter(Boolean)
-      : [];
+    const messages = normalizeConversationMessages(body?.messages);
 
     const serializedMessages = JSON.stringify(messages);
 
