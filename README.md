@@ -1,4 +1,4 @@
-# AI编程学习平台 (AIOJ)
+# AI编程学习平台 (智学编程)
 
 [English](./README.en.md) | 中文
 

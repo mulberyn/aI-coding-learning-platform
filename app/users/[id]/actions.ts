@@ -391,7 +391,7 @@ async function fetchLLMRecommendations(params: {
           title: item.title.trim(),
           href: item.href.trim(),
           reason: item.reason?.trim() || "根据当前学习节奏推荐",
-          meta: item.meta?.trim() || "AIOJ 推荐",
+          meta: item.meta?.trim() || "智学编程 推荐",
         })),
     }))
     .filter((group) => group.items.length > 0);

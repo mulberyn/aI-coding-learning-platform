@@ -6,6 +6,9 @@ import { CopyButton } from "../../../components/copy-button";
 import { ProblemSidebar } from "@/components/problem-sidebar";
 import { ProblemHeader } from "@/components/problem-header";
 import { TopNavBar } from "@/app/components/TopNavBar";
+import ReactMarkdown from "react-markdown";
+import rehypeKatex from "rehype-katex";
+import remarkMath from "remark-math";
 import {
   BookOpen,
   FileText,
@@ -24,6 +27,56 @@ type StatementSections = {
   outputFormat: string | null;
   dataRange: string | null;
 };
+
+function MarkdownBlock({ content }: { content: string | null }) {
+  if (!content) {
+    return null;
+  }
+
+  return (
+    <ReactMarkdown
+      remarkPlugins={[remarkMath]}
+      rehypePlugins={[rehypeKatex]}
+      components={{
+        p: ({ children }) => (
+          <p className="whitespace-pre-wrap leading-7 text-muted">{children}</p>
+        ),
+        ul: ({ children }) => (
+          <ul className="ml-6 list-disc space-y-1 text-muted">{children}</ul>
+        ),
+        ol: ({ children }) => (
+          <ol className="ml-6 list-decimal space-y-1 text-muted">{children}</ol>
+        ),
+        li: ({ children }) => <li className="leading-7">{children}</li>,
+        strong: ({ children }) => (
+          <strong className="font-semibold text-foreground">{children}</strong>
+        ),
+        em: ({ children }) => <em className="italic">{children}</em>,
+        code: ({ children, className }) => (
+          <code
+            className={`rounded bg-panel-strong px-1.5 py-0.5 font-mono text-[0.95em] text-foreground ${
+              className ?? ""
+            }`}
+          >
+            {children}
+          </code>
+        ),
+        pre: ({ children }) => (
+          <pre className="overflow-x-auto rounded-lg border border-ui bg-panel-strong p-4 font-mono text-sm text-foreground">
+            {children}
+          </pre>
+        ),
+        blockquote: ({ children }) => (
+          <blockquote className="border-l-4 border-ui pl-4 italic text-muted">
+            {children}
+          </blockquote>
+        ),
+      }}
+    >
+      {content}
+    </ReactMarkdown>
+  );
+}
 
 function parseStatementSections(statement: string): StatementSections {
   const cleaned = statement.replace(/\r\n?/g, "\n").trim();
@@ -167,9 +220,7 @@ int main() {
                   题目描述
                 </h2>
               </div>
-              <p className="text-muted leading-7 whitespace-pre-wrap">
-                {statementSections.description}
-              </p>
+              <MarkdownBlock content={statementSections.description} />
             </section>
 
             {/* 输入格式 */}
@@ -181,9 +232,7 @@ int main() {
                     输入格式
                   </h2>
                 </div>
-                <p className="text-muted leading-7 whitespace-pre-wrap">
-                  {displayInputFormat}
-                </p>
+                <MarkdownBlock content={displayInputFormat} />
               </section>
             )}
 
@@ -196,9 +245,7 @@ int main() {
                     输出格式
                   </h2>
                 </div>
-                <p className="text-muted leading-7 whitespace-pre-wrap">
-                  {displayOutputFormat}
-                </p>
+                <MarkdownBlock content={displayOutputFormat} />
               </section>
             )}
 
@@ -286,9 +333,7 @@ int main() {
                   数据范围
                 </h2>
               </div>
-              <p className="text-muted leading-7 whitespace-pre-wrap">
-                {displayDataRange}
-              </p>
+              <MarkdownBlock content={displayDataRange} />
             </section>
           </div>
 

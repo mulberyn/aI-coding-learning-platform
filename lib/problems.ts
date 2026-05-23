@@ -8,8 +8,8 @@ export const difficultyLabel: Record<Difficulty, string> = {
 };
 
 export const problemTypeLabel: Record<ProblemType, string> = {
-  FUNCTIONAL: "函数式题目（LeetCode 风格）",
-  TRADITIONAL: "传统输入输出题（Codeforces 风格）",
+  FUNCTIONAL: "算法题",
+  TRADITIONAL: "算法题",
 };
 
 export async function getPartitionedProblems() {

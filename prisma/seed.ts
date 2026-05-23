@@ -1,5 +1,5 @@
 import bcrypt from "bcryptjs";
-import { promises as fs } from "node:fs";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import {
   Difficulty,
@@ -14,7 +14,7 @@ import {
 
 const prisma = new PrismaClient();
 
-type ProblemMeta = {
+type ProblemSeed = {
   problemNumber: number;
   slug: string;
   title: string;
@@ -23,121 +23,234 @@ type ProblemMeta = {
   difficulty: Difficulty;
   type: ProblemType;
   acceptanceRate: number;
+  statement: string;
+  sampleInput: string;
+  sampleOutput: string;
+  sampleExplanation: string;
+  hiddenInput: string;
+  hiddenOutput: string;
+  traditionalInputFormat: string;
+  traditionalOutputFormat: string;
+  dataRange: string;
 };
 
-type ProblemCaseConfig = {
-  slug: string;
+type ProblemTemplate = {
   title: string;
-  desc: string;
-  inFmt: string;
-  outFmt: string;
-  range: string;
-  sampleIn: string;
-  sampleOut: string;
-  sampleExp: string;
-  hiddenIn: string;
-  hiddenOut: string;
+  focus: string;
 };
 
-const problemTitles = [
-  "相邻对求和",
-  "前缀峰值",
-  "偶数拆分",
-  "窗口得分",
-  "去重计数",
-  "数位折叠",
-  "括号通道",
-  "动态中位数",
-  "资源队列",
-  "山脉行走",
-  "交通信号",
-  "旋转轨迹",
-  "最近更高者",
-  "奇偶归并",
-  "区间计数",
-  "有序合并",
-  "最短窗口计数",
-  "惰性求和",
-  "资源背包",
-  "稳定分桶",
-  "服务负载",
-  "镜像单词",
-  "预算路径",
-  "分数提升",
-  "班次报告",
-  "字符预算",
-  "路径接力",
-  "颜色均值",
-  "双端队列顺序",
-  "最终账本",
-];
-
-const topics = [
-  "数组",
-  "前缀和",
-  "数学",
-  "滑动窗口",
-  "哈希表",
-  "模拟",
-  "栈",
-  "数据结构",
-  "队列",
-  "差分",
-  "区间",
-  "旋转",
-  "单调栈",
-  "排序",
-  "数位统计",
-  "双指针",
-  "字符串",
-  "统计",
-  "动态规划",
-  "分桶",
-  "事件扫描",
-  "字符串",
-  "图论",
-  "前缀最大值",
-  "区间合并",
-  "计数",
-  "树",
-  "数学",
-  "双端队列",
-  "综合",
-];
+type ProblemGroup = {
+  topic: string;
+  baseAcceptanceRate: number;
+  inputFormat: string;
+  outputFormat: string;
+  dataRange: string;
+  sampleInput: string;
+  sampleOutput: string;
+  sampleExplanation: string;
+  hiddenInput: string;
+  hiddenOutput: string;
+  items: ProblemTemplate[];
+};
 
 const difficulties = [Difficulty.EASY, Difficulty.MEDIUM, Difficulty.HARD];
 
-const problemMetas: ProblemMeta[] = Array.from({ length: 30 }).map((_, idx) => {
-  const number = idx + 1;
-  const slug = `P${String(number).padStart(4, "0")}`;
-  return {
-    problemNumber: number,
-    slug,
-    title: problemTitles[idx],
-    topic: topics[idx],
-    source: "题库精选",
-    difficulty: difficulties[idx % difficulties.length],
-    type: idx % 2 === 0 ? ProblemType.TRADITIONAL : ProblemType.FUNCTIONAL,
-    acceptanceRate: Number((0.35 + (idx % 10) * 0.05).toFixed(2)),
-  };
-});
+function loadProblemStatements() {
+  const catalogPath = path.join(
+    process.cwd(),
+    "prisma",
+    "problem-statements",
+    "catalog.md",
+  );
+  const content = readFileSync(catalogPath, "utf8");
+  const headingPattern = /^##\s+(ALG\d{4})\s+.+$/gm;
+  const matches = Array.from(content.matchAll(headingPattern));
+  const statements = new Map<string, string>();
 
-function statementFilePath(slug: string) {
-  return path.join(process.cwd(), "prisma", "problem-statements", `${slug}.md`);
+  for (let i = 0; i < matches.length; i++) {
+    const current = matches[i];
+    const next = matches[i + 1];
+    const start = (current.index ?? 0) + current[0].length;
+    const end = next?.index ?? content.length;
+    statements.set(current[1], content.slice(start, end).trim());
+  }
+
+  return statements;
 }
 
-async function loadMarkdownStatement(slug: string) {
-  const filePath = statementFilePath(slug);
-  const markdown = await fs.readFile(filePath, "utf8");
-  return markdown.trim();
+const problemStatements = loadProblemStatements();
+
+function getProblemStatement(slug: string) {
+  const statement = problemStatements.get(slug);
+  if (!statement) {
+    throw new Error(`Missing problem statement for ${slug}`);
+  }
+
+  return statement;
 }
 
-async function loadProblemCaseMap() {
-  const filePath = path.join(process.cwd(), "prisma", "problem-cases.json");
-  const raw = await fs.readFile(filePath, "utf8");
-  const parsed = JSON.parse(raw) as ProblemCaseConfig[];
-  return new Map(parsed.map((item) => [item.slug, item]));
+const problemGroups: ProblemGroup[] = [
+  {
+    topic: "数组基础",
+    baseAcceptanceRate: 0.72,
+    inputFormat: "第一行一个整数 n，第二行输入 n 个整数 a_i。",
+    outputFormat: "输出一个整数，表示题目要求的答案。",
+    dataRange: "$1 \\le n \\le 10^5$，$-10^9 \\le a_i \\le 10^9$。",
+    sampleInput: "5\n1 3 2 4 5\n",
+    sampleOutput: "15\n",
+    sampleExplanation: "示例中需要对数组进行基础统计或变换后得到答案。",
+    hiddenInput: "4\n2 1 4 3\n",
+    hiddenOutput: "10\n",
+    items: [
+      { title: "相邻对求和", focus: "相邻元素统计" },
+      { title: "前缀最大值", focus: "前缀维护" },
+      { title: "区间和查询", focus: "区间累加" },
+      { title: "差分修改", focus: "区间加法" },
+      { title: "去重统计", focus: "重复元素过滤" },
+      { title: "旋转数组", focus: "循环位移" },
+      { title: "窗口计数", focus: "滑动窗口计数" },
+      { title: "子数组极值", focus: "子数组最值" },
+      { title: "双指针合并", focus: "双指针归并" },
+      { title: "模拟打卡", focus: "数组模拟" },
+    ],
+  },
+  {
+    topic: "搜索",
+    baseAcceptanceRate: 0.62,
+    inputFormat:
+      "第一行输入两个整数 n 和 q，第二行输入一个有序数组，后续为若干查询。",
+    outputFormat: "对每个查询输出对应位置或结果。",
+    dataRange: "$1 \\le n,q \\le 10^5$，数组单调不降。",
+    sampleInput: "6 4\n1 3 5 7 9 11\n7\n",
+    sampleOutput: "4\n",
+    sampleExplanation: "样例展示如何在有序序列上完成定位。",
+    hiddenInput: "5 1\n2 4 6 8 10\n8\n",
+    hiddenOutput: "4\n",
+    items: [
+      { title: "二分定位", focus: "二分查找" },
+      { title: "最左满足", focus: "左边界搜索" },
+      { title: "最右满足", focus: "右边界搜索" },
+      { title: "整数平方根", focus: "答案二分" },
+      { title: "旋转数组最小值", focus: "旋转序列搜索" },
+      { title: "有序区间查询", focus: "区间定位" },
+      { title: "第一次出现", focus: "首次匹配" },
+      { title: "最近合法位置", focus: "最近满足条件的位置" },
+      { title: "答案二分", focus: "单调性判定" },
+      { title: "插入位置", focus: "有序插入" },
+    ],
+  },
+  {
+    topic: "图论",
+    baseAcceptanceRate: 0.48,
+    inputFormat: "第一行输入 n 和 m，接下来 m 行描述边或邻接关系。",
+    outputFormat: "输出连通性、最短路或图结构的统计结果。",
+    dataRange: "$1 \\le n \\le 10^5$，$1 \\le m \\le 2 \\times 10^5$。",
+    sampleInput: "4 3\n1 2\n2 3\n3 4\n",
+    sampleOutput: "1\n",
+    sampleExplanation: "样例表示一个简单链式图。",
+    hiddenInput: "5 4\n1 2\n2 3\n4 5\n3 4\n",
+    hiddenOutput: "1\n",
+    items: [
+      { title: "连通块计数", focus: "深度优先遍历" },
+      { title: "广度优先最短路", focus: "BFS 最短路" },
+      { title: "拓扑排序", focus: "有向无环图排序" },
+      { title: "二分图染色", focus: "二分图判断" },
+      { title: "树的直径", focus: "树上两遍搜索" },
+      { title: "单源最短路", focus: "Dijkstra 或 SPFA" },
+      { title: "多源扩散", focus: "多源 BFS" },
+      { title: "环检测", focus: "图中成环判断" },
+      { title: "最小生成树", focus: "Kruskal 或 Prim" },
+      { title: "强连通分量", focus: "SCC 分解" },
+    ],
+  },
+  {
+    topic: "动态规划",
+    baseAcceptanceRate: 0.36,
+    inputFormat: "第一行输入 n，后续根据题意输入权值、状态或字符串。",
+    outputFormat: "输出最优值或方案数。",
+    dataRange: "$1 \\le n \\le 10^5$，状态数按题目限制给定。",
+    sampleInput: "5\n2 3 4 5 6\n10\n",
+    sampleOutput: "15\n",
+    sampleExplanation: "样例演示如何建立状态并转移。",
+    hiddenInput: "4\n1 4 2 7\n9\n",
+    hiddenOutput: "13\n",
+    items: [
+      { title: "01 背包入门", focus: "容量型动态规划" },
+      { title: "完全背包入门", focus: "无限次转移" },
+      { title: "最长递增子序列", focus: "序列 DP" },
+      { title: "区间动态规划", focus: "区间合并" },
+      { title: "树形动态规划", focus: "树上状态转移" },
+      { title: "状态压缩入门", focus: "集合状态枚举" },
+      { title: "数位动态规划", focus: "按位计数" },
+      { title: "路径计数", focus: "网格路径 DP" },
+      { title: "编辑距离", focus: "字符串转移" },
+      { title: "方案统计", focus: "计数型动态规划" },
+    ],
+  },
+  {
+    topic: "贪心",
+    baseAcceptanceRate: 0.56,
+    inputFormat: "第一行输入 n，随后输入若干区间、任务或资源描述。",
+    outputFormat: "输出贪心得到的最优结果。",
+    dataRange: "$1 \\le n \\le 10^5$，区间端点和权值满足题目约束。",
+    sampleInput: "4\n1 3\n2 4\n4 6\n7 8\n",
+    sampleOutput: "3\n",
+    sampleExplanation: "样例展示如何按贪心规则选择方案。",
+    hiddenInput: "5\n1 2\n2 5\n4 7\n6 9\n8 10\n",
+    hiddenOutput: "2\n",
+    items: [
+      { title: "区间选择", focus: "区间调度" },
+      { title: "任务安排", focus: "截止时间排序" },
+      { title: "跳跃游戏", focus: "最远可达性" },
+      { title: "最少删除", focus: "局部最优" },
+      { title: "会议室分配", focus: "资源分配" },
+      { title: "字典序构造", focus: "构造最小序列" },
+      { title: "资源分配", focus: "优先级选择" },
+      { title: "合并代价", focus: "最优合并顺序" },
+      { title: "追击问题", focus: "反向贪心" },
+      { title: "货仓选址", focus: "中位数贪心" },
+    ],
+  },
+];
+
+function buildGeneratedProblemSeeds() {
+  const seeds: ProblemSeed[] = [];
+  let problemNumber = 1;
+
+  for (const group of problemGroups) {
+    for (const [index, item] of group.items.entries()) {
+      const number = problemNumber++;
+      const slug = `ALG${String(number).padStart(4, "0")}`;
+      const difficulty = difficulties[index % difficulties.length];
+
+      seeds.push({
+        problemNumber: number,
+        slug,
+        title: item.title,
+        topic: group.topic,
+        source: "算法题",
+        difficulty,
+        type: ProblemType.TRADITIONAL,
+        acceptanceRate: Number(
+          (group.baseAcceptanceRate + (index % 4) * 0.04).toFixed(2),
+        ),
+        statement: getProblemStatement(slug),
+        sampleInput: group.sampleInput,
+        sampleOutput: group.sampleOutput,
+        sampleExplanation: group.sampleExplanation,
+        hiddenInput: group.hiddenInput,
+        hiddenOutput: group.hiddenOutput,
+        traditionalInputFormat: group.inputFormat,
+        traditionalOutputFormat: group.outputFormat,
+        dataRange: group.dataRange,
+      });
+    }
+  }
+
+  return seeds;
 }
+
+const generatedProblemSeeds = buildGeneratedProblemSeeds();
 
 async function seedUsers() {
   const users = [
@@ -159,7 +272,6 @@ async function seedUsers() {
       role: Role.ADMIN,
       password: "password123",
     },
-    // 多个学生账号
     {
       email: "alice@example.com",
       name: "Alice Chen",
@@ -229,70 +341,49 @@ async function seedUsers() {
   }
 }
 
-function makeExamples(config: ProblemCaseConfig) {
-  return [
-    {
-      input: config.sampleIn,
-      output: config.sampleOut,
-      explanation: config.sampleExp,
-    },
-  ];
-}
-
-function makeTestCases(config: ProblemCaseConfig) {
-  return [
-    {
-      input: config.sampleIn,
-      expectedOutput: config.sampleOut,
-      isSample: true,
-    },
-    {
-      input: config.hiddenIn,
-      expectedOutput: config.hiddenOut,
-      isSample: false,
-    },
-  ];
-}
-
 async function seedProblems() {
-  const caseMap = await loadProblemCaseMap();
-
   await prisma.judgeResult.deleteMany();
   await prisma.submission.deleteMany();
   await prisma.testCase.deleteMany();
   await prisma.example.deleteMany();
   await prisma.problem.deleteMany();
 
-  for (const item of problemMetas) {
-    const caseConfig = caseMap.get(item.slug);
-    if (!caseConfig) {
-      throw new Error(`Missing problem case config for ${item.slug}`);
-    }
-
-    const statement = await loadMarkdownStatement(item.slug);
-    const examples = makeExamples(caseConfig);
-    const testCases = makeTestCases(caseConfig);
+  for (const item of generatedProblemSeeds) {
+    const examples = [
+      {
+        input: item.sampleInput,
+        output: item.sampleOutput,
+        explanation: item.sampleExplanation,
+      },
+    ];
+    const testCases = [
+      {
+        input: item.sampleInput,
+        expectedOutput: item.sampleOutput,
+        isSample: true,
+      },
+      {
+        input: item.hiddenInput,
+        expectedOutput: item.hiddenOutput,
+        isSample: false,
+      },
+    ];
 
     await prisma.problem.create({
       data: {
         slug: item.slug,
         problemNumber: item.problemNumber,
         title: item.title,
-        statement,
+        statement: item.statement,
         topic: item.topic,
         source: item.source,
         difficulty: item.difficulty,
         type: item.type,
         acceptanceRate: item.acceptanceRate,
-        functionName: item.type === ProblemType.FUNCTIONAL ? "solve" : null,
-        functionSignature:
-          item.type === ProblemType.FUNCTIONAL
-            ? "function solve(input: string): string"
-            : null,
-        traditionalInputFormat:
-          item.type === ProblemType.TRADITIONAL ? caseConfig.inFmt : null,
-        traditionalOutputFormat:
-          item.type === ProblemType.TRADITIONAL ? caseConfig.outFmt : null,
+        functionName: null,
+        functionSignature: null,
+        traditionalInputFormat: item.traditionalInputFormat,
+        traditionalOutputFormat: item.traditionalOutputFormat,
         timeLimitMs: 1000,
         memoryLimitMb: 256,
         examples: {

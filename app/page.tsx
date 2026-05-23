@@ -138,11 +138,11 @@ export default async function HomePage() {
           <section className="grid gap-4 lg:grid-cols-[1.35fr_0.85fr]">
             <div className="rounded-[22px] border border-ui bg-panel/95 px-6 py-7 sm:px-8">
               <p className="text-xs font-medium uppercase tracking-[0.36em] text-muted">
-                AIOJ · 在线编程学习平台
+                智学编程 · 在线编程学习平台
               </p>
               <div className="mt-4 flex flex-wrap items-end gap-3">
                 <h1 className="text-4xl font-semibold tracking-tight sm:text-5xl">
-                  欢迎来到 AIOJ！
+                  欢迎来到 智学编程！
                 </h1>
                 {session?.user?.name ? (
                   <span className="rounded-full border border-ui bg-panel-strong px-3 py-1 text-sm text-muted">
@@ -151,7 +151,7 @@ export default async function HomePage() {
                 ) : null}
               </div>
               <p className="mt-4 max-w-3xl text-base leading-8 text-muted sm:text-[1.03rem]">
-                AIOJ
+                智学编程
                 是一个在线编程学习平台，提供丰富的题库、比赛和学习资源，帮助你提升编程能力。
               </p>
 
@@ -366,7 +366,8 @@ export default async function HomePage() {
                   登录后启用个性化学习路线推荐
                 </h2>
                 <p className="mt-3 text-sm text-muted">
-                  使用你在设置中配置的大模型 API Key，结合个人历史行为数据，生成并保存可管理的学习路线。
+                  使用你在设置中配置的大模型 API
+                  Key，结合个人历史行为数据，生成并保存可管理的学习路线。
                 </p>
                 <div className="mt-4">
                   <Link

@@ -169,7 +169,7 @@ export function LearningOverviewPanel({
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <p className="text-xs font-medium uppercase tracking-[0.34em] text-muted">
-              AIOJ · Learning Overview
+              智学编程 · Learning Overview
             </p>
             <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">
               学习概览

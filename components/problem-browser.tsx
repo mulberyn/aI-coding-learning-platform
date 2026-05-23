@@ -2,15 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import {
-  Check,
-  ChevronLeft,
-  ChevronRight,
-  Minus,
-  Search,
-  Star,
-  X,
-} from "lucide-react";
+import { Check, Minus, Search, Star, X } from "lucide-react";
 import { difficultyLabel } from "@/lib/problems";
 
 export type ProblemCatalogItem = {
@@ -39,6 +31,10 @@ function getSolvedCount(solvedCount: number) {
   return solvedCount;
 }
 
+function getProblemTypeLabel(problemType: ProblemCatalogItem["type"]) {
+  return problemType === "TRADITIONAL" ? "算法题" : "选择题";
+}
+
 export function ProblemBrowser({
   problems,
   userId,
@@ -47,12 +43,10 @@ export function ProblemBrowser({
   const [search, setSearch] = useState("");
   const [topicFilter, setTopicFilter] = useState("all");
   const [showTags, setShowTags] = useState(true);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [problemTypeFilter, setProblemTypeFilter] = useState<
+  const [problemCategoryFilter, setProblemCategoryFilter] = useState<
     "all" | "TRADITIONAL" | "FUNCTIONAL"
-  >("all");
+  >("TRADITIONAL");
   const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
-  const [collectionFilter, setCollectionFilter] = useState<string | null>(null);
 
   const storageKey = userId ? `problem-favorites:${userId}` : null;
 
@@ -81,38 +75,17 @@ export function ProblemBrowser({
       const matchesTopic =
         topicFilter === "all" || problem.topic === topicFilter;
       const matchesType =
-        problemTypeFilter === "all" || problem.type === problemTypeFilter;
+        problemCategoryFilter === "all" ||
+        problem.type === problemCategoryFilter;
       const matchesSearch =
         !normalizedSearch ||
         [problem.title, problem.topic, problem.source, problem.statement]
           .filter(Boolean)
           .some((value) => value.toLowerCase().includes(normalizedSearch));
-      const matchesCollection =
-        collectionFilter !== "my-favorites" || favoriteIds.includes(problem.id);
 
-      return matchesTopic && matchesType && matchesSearch && matchesCollection;
+      return matchesTopic && matchesType && matchesSearch;
     });
-  }, [
-    problems,
-    problemTypeFilter,
-    search,
-    topicFilter,
-    collectionFilter,
-    favoriteIds,
-  ]);
-
-  const typeCount = useMemo(() => {
-    return {
-      TRADITIONAL: problems.filter((problem) => problem.type === "TRADITIONAL")
-        .length,
-      FUNCTIONAL: problems.filter((problem) => problem.type === "FUNCTIONAL")
-        .length,
-    };
-  }, [problems]);
-
-  const favoriteCount = useMemo(() => {
-    return favoriteIds.length;
-  }, [favoriteIds]);
+  }, [problems, problemCategoryFilter, search, topicFilter, favoriteIds]);
 
   function persistFavorites(nextFavorites: string[]) {
     setFavoriteIds(nextFavorites);
@@ -182,135 +155,50 @@ export function ProblemBrowser({
   }
 
   const tableColumns =
-    "64px 80px minmax(260px,1.45fr) minmax(220px,1.2fr) 94px 72px 86px";
-
+    "64px 80px minmax(260px,1.45fr) minmax(180px,1fr) 96px 94px 72px 86px";
   return (
     <div className="relative min-h-screen flex flex-col lg:block">
-      <aside
-        className={`w-full border-b border-ui bg-panel-strong/50 py-8 px-3 lg:absolute lg:inset-y-0 lg:left-0 lg:z-10 lg:border-b-0 lg:border-r lg:transition-[width] lg:duration-300 lg:ease-in-out ${
-          sidebarCollapsed
-            ? "lg:w-[72px] lg:pl-6 lg:pr-2"
-            : "lg:w-[280px] lg:px-3"
-        }`}
-      >
-        <button
-          type="button"
-          onClick={() => setSidebarCollapsed((value) => !value)}
-          aria-label={sidebarCollapsed ? "展开侧边栏" : "收起侧边栏"}
-          className="absolute -right-3 top-6 z-10 hidden h-6 w-6 items-center justify-center rounded-full border border-ui bg-panel text-muted transition hover:text-current lg:flex"
-        >
-          {sidebarCollapsed ? (
-            <ChevronRight className="h-4 w-4" aria-hidden />
-          ) : (
-            <ChevronLeft className="h-4 w-4" aria-hidden />
-          )}
-        </button>
-
-        <div className={`block ${sidebarCollapsed ? "lg:hidden" : "lg:block"}`}>
-          <section className="mb-8">
-            <h3 className="mb-4 text-base font-semibold">题目类型</h3>
-            <div className="space-y-3">
-              <button
-                type="button"
-                onClick={() => setProblemTypeFilter("TRADITIONAL")}
-                className={`flex w-full items-center justify-between text-left text-base transition ${
-                  problemTypeFilter === "TRADITIONAL"
-                    ? "text-current font-medium"
-                    : "text-muted"
-                } hover:text-current`}
-              >
-                <span>传统题目类型</span>
-                <span className="text-sm">{typeCount.TRADITIONAL}</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setProblemTypeFilter("FUNCTIONAL")}
-                className={`flex w-full items-center justify-between text-left text-base transition ${
-                  problemTypeFilter === "FUNCTIONAL"
-                    ? "text-current font-medium"
-                    : "text-muted"
-                } hover:text-current`}
-              >
-                <span>函数式</span>
-                <span className="text-sm">{typeCount.FUNCTIONAL}</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setProblemTypeFilter("all")}
-                className={`flex w-full items-center justify-between text-left text-base transition ${
-                  problemTypeFilter === "all"
-                    ? "text-current font-medium"
-                    : "text-muted"
-                } hover:text-current`}
-              >
-                <span>全部题目</span>
-              </button>
-            </div>
-            <div className="my-6 h-0.5 bg-gray-300/90 dark:bg-gray-600/80" />
-          </section>
-
-          <section>
-            <h3 className="mb-4 text-base font-semibold">题单</h3>
-            <div className="space-y-3">
-              <button
-                type="button"
-                onClick={() =>
-                  setCollectionFilter(
-                    collectionFilter === "my-favorites" ? null : "my-favorites",
-                  )
+      <aside className="w-full border-b border-ui bg-panel-strong/50 px-3 py-8 lg:absolute lg:inset-y-0 lg:left-0 lg:z-10 lg:w-[280px] lg:border-b-0 lg:border-r lg:px-3">
+        <section>
+          <h3 className="mb-4 text-base font-semibold">题目分类</h3>
+          <div className="space-y-3">
+            <button
+              type="button"
+              onClick={() => setProblemCategoryFilter("TRADITIONAL")}
+              className={`flex w-full items-center justify-between rounded-md border px-4 py-2.5 text-left text-base transition ${
+                problemCategoryFilter === "TRADITIONAL"
+                  ? "border-ui bg-panel font-medium text-current"
+                  : "border-transparent bg-transparent text-muted hover:text-current"
+              }`}
+            >
+              <span>算法题</span>
+              <span className="text-sm text-muted">
+                {
+                  problems.filter((problem) => problem.type === "TRADITIONAL")
+                    .length
                 }
-                className={`flex w-full items-center justify-between text-left text-base transition ${
-                  collectionFilter === "my-favorites"
-                    ? "text-current font-medium"
-                    : "text-muted hover:text-current"
-                }`}
-              >
-                <span>我的收藏</span>
-                <span className="text-sm">{favoriteCount}</span>
-              </button>
-              <button
-                type="button"
-                className={`block w-full text-left text-base transition ${
-                  collectionFilter === "beginner"
-                    ? "text-current font-medium"
-                    : "text-muted hover:text-current"
-                }`}
-              >
-                入门题单
-              </button>
-              <button
-                type="button"
-                className={`block w-full text-left text-base transition ${
-                  collectionFilter === "algorithm"
-                    ? "text-current font-medium"
-                    : "text-muted hover:text-current"
-                }`}
-              >
-                算法题单
-              </button>
-              <button
-                type="button"
-                className={`block w-full text-left text-base transition ${
-                  collectionFilter === "data-structure"
-                    ? "text-current font-medium"
-                    : "text-muted hover:text-current"
-                }`}
-              >
-                数据结构题单
-              </button>
-              <button
-                type="button"
-                className={`block w-full text-left text-base transition ${
-                  collectionFilter === "my-collections"
-                    ? "text-current font-medium"
-                    : "text-muted hover:text-current"
-                }`}
-              >
-                我的题单 / 公开题单
-              </button>
-            </div>
-          </section>
-        </div>
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setProblemCategoryFilter("FUNCTIONAL")}
+              className={`flex w-full items-center justify-between rounded-md border px-4 py-2.5 text-left text-base transition ${
+                problemCategoryFilter === "FUNCTIONAL"
+                  ? "border-ui bg-panel font-medium text-current"
+                  : "border-transparent bg-transparent text-muted hover:text-current"
+              }`}
+            >
+              <span>选择题</span>
+              <span className="text-sm text-muted">
+                {
+                  problems.filter((problem) => problem.type === "FUNCTIONAL")
+                    .length
+                }
+              </span>
+            </button>
+          </div>
+        </section>
       </aside>
 
       <section className="w-full px-4 py-8 sm:px-6 lg:px-8 lg:pl-[280px]">
@@ -348,7 +236,7 @@ export function ProblemBrowser({
                     onClick={() => setShowTags((value) => !value)}
                     className="flex w-full items-center justify-between gap-3 border border-ui bg-panel px-4 py-2.5 text-sm transition hover:bg-panel-strong"
                   >
-                    <span>显示标签</span>
+                    <span>显示知识点</span>
                     <span
                       className={`relative h-5 w-10 rounded-full border border-ui transition ${
                         showTags ? "bg-current" : "bg-panel"
@@ -367,7 +255,7 @@ export function ProblemBrowser({
 
             <div className="overflow-x-auto">
               <div
-                className="grid min-w-[900px] items-center border-b border-ui bg-panel-strong px-3 text-sm font-semibold"
+                className="grid min-w-[1040px] items-center border-b border-ui bg-panel-strong px-3 text-sm font-semibold"
                 style={{
                   gridTemplateColumns: tableColumns,
                 }}
@@ -377,10 +265,12 @@ export function ProblemBrowser({
                 </div>
                 <div className="flex h-10 items-center pl-3">题号</div>
                 <div className="flex h-10 items-center">题目名称</div>
-                <div
-                  className="flex h-10 items-center justify-end pr-2"
-                  aria-hidden
-                />
+                <div className="flex h-10 items-center justify-center">
+                  知识点
+                </div>
+                <div className="flex h-10 items-center justify-center">
+                  题目类型
+                </div>
                 <div className="flex h-10 items-center justify-center pl-1 pr-1">
                   过题人数
                 </div>
@@ -404,7 +294,7 @@ export function ProblemBrowser({
                     return (
                       <div
                         key={problem.id}
-                        className="grid min-w-[900px] items-center border-b border-ui px-3 text-sm transition hover:bg-panel-strong/60"
+                        className="grid min-w-[1040px] items-center border-b border-ui px-3 text-sm transition hover:bg-panel-strong/60"
                         style={{
                           gridTemplateColumns: tableColumns,
                           minHeight: "2.5em",
@@ -427,14 +317,14 @@ export function ProblemBrowser({
                           </Link>
                         </div>
 
-                        <div className="flex h-10 items-center justify-end gap-2 overflow-hidden whitespace-nowrap pr-2 text-xs text-muted">
+                        <div className="flex h-10 items-center justify-center text-xs font-medium text-muted">
                           {showTags ? (
-                            <>
-                              <span className="truncate">{problem.topic}</span>
-                              <span>/</span>
-                              <span className="truncate">{problem.source}</span>
-                            </>
+                            <span className="truncate">{problem.topic}</span>
                           ) : null}
+                        </div>
+
+                        <div className="flex h-10 items-center justify-center text-xs font-medium text-muted">
+                          {getProblemTypeLabel(problem.type)}
                         </div>
 
                         <div className="flex h-10 items-center justify-center pr-1 font-medium">

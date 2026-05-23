@@ -340,7 +340,7 @@ export function TopNavBar({
               <Bot className="h-4 w-4" />
             </span>
             <span className="text-[15px] font-semibold tracking-tight">
-              AIOJ
+              智学编程
             </span>
           </Link>
         </div>
