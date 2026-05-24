@@ -104,7 +104,7 @@ export default function ContestDetailContent({
       }
 
       setIsRegistered(!isRegistered);
-      setParticipantCount((currentCount) =>
+      setParticipantCount((currentCount: number) =>
         isRegistered ? Math.max(0, currentCount - 1) : currentCount + 1,
       );
     });

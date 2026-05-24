@@ -1,10 +1,6 @@
 export type LearningRoutePointStatus = "pending" | "in_progress" | "done";
 
-export type LearningRoutePointType =
-  | "problem"
-  | "contest"
-  | "forum"
-  | "custom";
+export type LearningRoutePointType = "problem" | "contest" | "forum" | "custom";
 
 export type LearningRoutePoint = {
   id: string;
@@ -16,6 +12,12 @@ export type LearningRoutePoint = {
   targetDate: string | null;
   status: LearningRoutePointStatus;
   sortOrder: number;
+  linkHref?: string | null;
+  linkLabel?: string | null;
+  problemAttemptState?: "UNTRIED" | "ATTEMPTED" | "SOLVED";
+  contestRegistered?: boolean;
+  contestScore?: number | null;
+  contestRank?: number | null;
 };
 
 export type LearningRoute = {
@@ -27,6 +29,30 @@ export type LearningRoute = {
   summary: string | null;
   generatedAt: string;
   createdAt: string;
+  updatedAt: string;
+  progress?: {
+    totalPoints: number;
+    completedPoints: number;
+    completionRate: number;
+    isComplete: boolean;
+  };
+  tracking?: LearningRouteTracking | null;
+};
+
+export type LearningRouteTracking = {
+  summary: string;
+  analysis: string[];
+  suggestions: Array<{
+    title: string;
+    reason: string;
+  }>;
+  snippets: Array<{
+    problemTitle: string;
+    status: string;
+    createdAt: string;
+    code: string;
+  }>;
+  completionSignature: string;
   updatedAt: string;
 };
 

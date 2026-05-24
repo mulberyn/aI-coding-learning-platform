@@ -4,6 +4,7 @@ import {
   SubmissionStatus,
 } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { refreshLearningRouteTrackingForProblem } from "@/lib/learning-route-tracking";
 
 const judge0LanguageIdMap: Record<SubmissionLanguage, number> = {
   C: 50,
@@ -373,6 +374,20 @@ export async function runSubmissionJudging(submissionId: string) {
         finishedAt: new Date(),
       },
     });
+
+    if (finalStatus === SubmissionStatus.ACCEPTED) {
+      try {
+        await refreshLearningRouteTrackingForProblem({
+          userId: submission.userId,
+          problemRef: submission.problemId,
+        });
+      } catch (trackingError) {
+        console.error(
+          `[LearningRouteTracking] Failed to refresh after accepted submission ${submission.id}:`,
+          trackingError,
+        );
+      }
+    }
   } catch (error) {
     const errorMessage =
       error instanceof Error ? error.message : "评测服务异常，请稍后重试。";

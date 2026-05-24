@@ -1,9 +1,11 @@
 import { prisma } from "@/lib/prisma";
+import { getUserProblemAttemptMap } from "@/lib/problems";
 import {
   type GeneratedLearningRoute,
   type LearningRoute,
   type LearningRoutePoint,
   type LearningRoutePointStatus,
+  type LearningRouteTracking,
   type LearningRouteWithPoints,
 } from "@/lib/learning-route-types";
 
@@ -60,12 +62,29 @@ async function ensureLearningRouteTables() {
     );
   `);
 
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS learning_route_tracking (
+      route_id TEXT PRIMARY KEY,
+      summary TEXT NOT NULL DEFAULT '',
+      analysis TEXT NOT NULL DEFAULT '[]',
+      suggestions TEXT NOT NULL DEFAULT '[]',
+      snippets TEXT NOT NULL DEFAULT '[]',
+      completion_signature TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY(route_id) REFERENCES learning_routes(id) ON DELETE CASCADE
+    );
+  `);
+
   await prisma.$executeRawUnsafe(
     "CREATE INDEX IF NOT EXISTS idx_learning_routes_user_created ON learning_routes(user_id, created_at DESC);",
   );
 
   await prisma.$executeRawUnsafe(
     "CREATE INDEX IF NOT EXISTS idx_learning_route_points_route_sort ON learning_route_points(route_id, sort_order ASC);",
+  );
+
+  await prisma.$executeRawUnsafe(
+    "CREATE INDEX IF NOT EXISTS idx_learning_route_tracking_updated ON learning_route_tracking(updated_at DESC);",
   );
 
   scopedGlobal[TABLES_READY_KEY] = true;
@@ -95,6 +114,127 @@ type PointRow = {
   sort_order: number;
 };
 
+type TrackingRow = {
+  route_id: string;
+  summary: string;
+  analysis: string;
+  suggestions: string;
+  snippets: string;
+  completion_signature: string;
+  updated_at: string;
+};
+
+type ContestProgressRow = {
+  contestId: string;
+  totalScore: number;
+  rank: number;
+};
+
+type ProblemRefRow = {
+  id: string;
+  slug: string;
+};
+
+function buildPointHref(pointType: PointRow["point_type"], refId: string) {
+  if (pointType === "problem") {
+    return `/problems/${refId}`;
+  }
+
+  if (pointType === "contest") {
+    return `/contests/${refId}`;
+  }
+
+  if (pointType === "forum") {
+    return `/forum/${refId}`;
+  }
+
+  return null;
+}
+
+function buildPointLinkLabel(pointType: PointRow["point_type"]) {
+  if (pointType === "problem") return "查看原题";
+  if (pointType === "contest") return "查看比赛";
+  if (pointType === "forum") return "查看帖子";
+  return "查看详情";
+}
+
+function computeRouteProgress(points: LearningRoutePoint[]) {
+  const totalPoints = points.length;
+  const completedPoints = points.filter((point) => {
+    if (point.pointType === "problem") {
+      return point.problemAttemptState === "SOLVED";
+    }
+
+    if (point.pointType === "contest") {
+      return Boolean(point.contestRegistered && point.contestScore !== null);
+    }
+
+    return point.status === "done";
+  }).length;
+
+  return {
+    totalPoints,
+    completedPoints,
+    completionRate: totalPoints > 0 ? completedPoints / totalPoints : 0,
+    isComplete: totalPoints > 0 && completedPoints === totalPoints,
+  };
+}
+
+async function getContestProgressMap(userId: string, contestIds: string[]) {
+  if (contestIds.length === 0) {
+    return {
+      registrationSet: new Set<string>(),
+      rankingMap: new Map<string, ContestProgressRow>(),
+    };
+  }
+
+  const [registrations, rankings] = await Promise.all([
+    prisma.contestRegistration.findMany({
+      where: { userId, contestId: { in: contestIds } },
+      select: { contestId: true },
+    }),
+    prisma.contestRanking.findMany({
+      where: { userId, contestId: { in: contestIds } },
+      select: { contestId: true, totalScore: true, rank: true },
+    }),
+  ]);
+
+  return {
+    registrationSet: new Set(registrations.map((item) => item.contestId)),
+    rankingMap: new Map(
+      rankings.map((item) => [item.contestId, item as ContestProgressRow]),
+    ),
+  };
+}
+
+async function getProblemAttemptStateByRefs(userId: string, refIds: string[]) {
+  if (refIds.length === 0) {
+    return new Map<string, "UNTRIED" | "ATTEMPTED" | "SOLVED">();
+  }
+
+  const uniqueRefs = Array.from(new Set(refIds.filter(Boolean)));
+  const problems = await prisma.problem.findMany({
+    where: {
+      OR: [{ slug: { in: uniqueRefs } }, { id: { in: uniqueRefs } }],
+    },
+    select: {
+      id: true,
+      slug: true,
+    },
+  });
+
+  const attemptMap = await getUserProblemAttemptMap(userId);
+  const stateByRef = new Map<string, "UNTRIED" | "ATTEMPTED" | "SOLVED">();
+
+  for (const problem of problems) {
+    const state = attemptMap[problem.id] ?? "UNTRIED";
+    stateByRef.set(problem.id, state);
+    stateByRef.set(problem.slug, state);
+  }
+
+  return stateByRef;
+}
+
 function mapRouteRow(row: RouteRow): LearningRoute {
   return {
     id: row.id,
@@ -105,6 +245,110 @@ function mapRouteRow(row: RouteRow): LearningRoute {
     summary: row.summary,
     generatedAt: normalizeDateText(row.generated_at),
     createdAt: normalizeDateText(row.created_at),
+    updatedAt: normalizeDateText(row.updated_at),
+  };
+}
+
+function parseTrackingRow(row: TrackingRow): LearningRouteTracking {
+  const parseTextArray = (value: string) => {
+    try {
+      const parsed = JSON.parse(value) as unknown;
+      if (!Array.isArray(parsed)) {
+        return [] as string[];
+      }
+
+      return parsed.filter((item): item is string => typeof item === "string");
+    } catch {
+      return [] as string[];
+    }
+  };
+
+  const parseSuggestionArray = (value: string) => {
+    try {
+      const parsed = JSON.parse(value) as unknown;
+      if (!Array.isArray(parsed)) {
+        return [] as LearningRouteTracking["suggestions"];
+      }
+
+      return parsed
+        .map((item) => {
+          if (!item || typeof item !== "object") {
+            return null;
+          }
+
+          const suggestion = item as { title?: unknown; reason?: unknown };
+          if (
+            typeof suggestion.title !== "string" ||
+            typeof suggestion.reason !== "string"
+          ) {
+            return null;
+          }
+
+          return {
+            title: suggestion.title,
+            reason: suggestion.reason,
+          };
+        })
+        .filter(
+          (item): item is LearningRouteTracking["suggestions"][number] =>
+            item !== null,
+        );
+    } catch {
+      return [] as LearningRouteTracking["suggestions"];
+    }
+  };
+
+  const parseSnippetArray = (value: string) => {
+    try {
+      const parsed = JSON.parse(value) as unknown;
+      if (!Array.isArray(parsed)) {
+        return [] as LearningRouteTracking["snippets"];
+      }
+
+      return parsed
+        .map((item) => {
+          if (!item || typeof item !== "object") {
+            return null;
+          }
+
+          const snippet = item as {
+            problemTitle?: unknown;
+            status?: unknown;
+            createdAt?: unknown;
+            code?: unknown;
+          };
+
+          if (
+            typeof snippet.problemTitle !== "string" ||
+            typeof snippet.status !== "string" ||
+            typeof snippet.createdAt !== "string" ||
+            typeof snippet.code !== "string"
+          ) {
+            return null;
+          }
+
+          return {
+            problemTitle: snippet.problemTitle,
+            status: snippet.status,
+            createdAt: snippet.createdAt,
+            code: snippet.code,
+          };
+        })
+        .filter(
+          (item): item is LearningRouteTracking["snippets"][number] =>
+            item !== null,
+        );
+    } catch {
+      return [] as LearningRouteTracking["snippets"];
+    }
+  };
+
+  return {
+    summary: row.summary,
+    analysis: parseTextArray(row.analysis),
+    suggestions: parseSuggestionArray(row.suggestions),
+    snippets: parseSnippetArray(row.snippets),
+    completionSignature: row.completion_signature,
     updatedAt: normalizeDateText(row.updated_at),
   };
 }
@@ -173,10 +417,139 @@ export async function getLearningRouteDetailById(params: {
     routeId,
   );
 
+  const trackingRows = await prisma.$queryRawUnsafe<TrackingRow[]>(
+    `
+      SELECT route_id, summary, analysis, suggestions, snippets, completion_signature, updated_at
+      FROM learning_route_tracking
+      WHERE route_id = ?
+      LIMIT 1;
+    `,
+    routeId,
+  );
+
+  const problemRefIds = pointRows
+    .filter((point) => point.point_type === "problem" && point.ref_id)
+    .map((point) => point.ref_id as string);
+  const contestProgressMap = await getContestProgressMap(
+    userId,
+    pointRows
+      .filter((point) => point.point_type === "contest" && point.ref_id)
+      .map((point) => point.ref_id as string),
+  );
+  const problemAttemptMap = await getProblemAttemptStateByRefs(
+    userId,
+    problemRefIds,
+  );
+
+  const points = pointRows.map((row) => {
+    const point = mapPointRow(row);
+    const refId = row.ref_id?.trim() || null;
+
+    return {
+      ...point,
+      linkHref: refId ? buildPointHref(row.point_type, refId) : null,
+      linkLabel: buildPointLinkLabel(row.point_type),
+      problemAttemptState:
+        row.point_type === "problem" && refId
+          ? (problemAttemptMap.get(refId) ?? "UNTRIED")
+          : undefined,
+      contestRegistered:
+        row.point_type === "contest" && refId
+          ? contestProgressMap.registrationSet.has(refId)
+          : undefined,
+      contestScore:
+        row.point_type === "contest" && refId
+          ? (contestProgressMap.rankingMap.get(refId)?.totalScore ?? null)
+          : undefined,
+      contestRank:
+        row.point_type === "contest" && refId
+          ? (contestProgressMap.rankingMap.get(refId)?.rank ?? null)
+          : undefined,
+    } satisfies LearningRoutePoint;
+  });
+
   return {
-    route: mapRouteRow(route),
-    points: pointRows.map(mapPointRow),
+    route: {
+      ...mapRouteRow(route),
+      progress: computeRouteProgress(points),
+      tracking: trackingRows[0] ? parseTrackingRow(trackingRows[0]) : null,
+    },
+    points,
   } satisfies LearningRouteWithPoints;
+}
+
+export async function upsertLearningRouteTracking(params: {
+  routeId: string;
+  summary: string;
+  analysis: string[];
+  suggestions: Array<{
+    title: string;
+    reason: string;
+  }>;
+  snippets: Array<{
+    problemTitle: string;
+    status: string;
+    createdAt: string;
+    code: string;
+  }>;
+  completionSignature: string;
+}) {
+  const {
+    routeId,
+    summary,
+    analysis,
+    suggestions,
+    snippets,
+    completionSignature,
+  } = params;
+  await ensureLearningRouteTables();
+
+  await prisma.$executeRawUnsafe(
+    `
+      INSERT INTO learning_route_tracking (
+        route_id,
+        summary,
+        analysis,
+        suggestions,
+        snippets,
+        completion_signature,
+        updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(route_id) DO UPDATE SET
+        summary = excluded.summary,
+        analysis = excluded.analysis,
+        suggestions = excluded.suggestions,
+        snippets = excluded.snippets,
+        completion_signature = excluded.completion_signature,
+        updated_at = excluded.updated_at;
+    `,
+    routeId,
+    summary,
+    JSON.stringify(analysis),
+    JSON.stringify(suggestions),
+    JSON.stringify(snippets),
+    completionSignature,
+    new Date().toISOString(),
+  );
+}
+
+export async function getLearningRouteTrackingByRouteId(params: {
+  routeId: string;
+}) {
+  const { routeId } = params;
+  await ensureLearningRouteTables();
+
+  const rows = await prisma.$queryRawUnsafe<TrackingRow[]>(
+    `
+      SELECT route_id, summary, analysis, suggestions, snippets, completion_signature, updated_at
+      FROM learning_route_tracking
+      WHERE route_id = ?
+      LIMIT 1;
+    `,
+    routeId,
+  );
+
+  return rows[0] ? parseTrackingRow(rows[0]) : null;
 }
 
 export async function createLearningRoute(params: {

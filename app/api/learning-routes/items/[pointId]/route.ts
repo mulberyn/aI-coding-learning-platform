@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { updateLearningRoutePoint } from "@/lib/learning-route-db";
+import { refreshLearningRouteTrackingForRoute } from "@/lib/learning-route-tracking";
 import { type LearningRoutePointStatus } from "@/lib/learning-route-types";
 
 function normalizeStatus(value: unknown): LearningRoutePointStatus | undefined {
@@ -24,11 +25,12 @@ export async function PATCH(
   try {
     const { pointId } = await context.params;
     const body = await request.json();
+    const nextStatus = normalizeStatus(body?.status);
 
     const detail = await updateLearningRoutePoint({
       userId,
       pointId,
-      status: normalizeStatus(body?.status),
+      status: nextStatus,
       title: typeof body?.title === "string" ? body.title.trim() : undefined,
       description:
         typeof body?.description === "string"
@@ -46,12 +48,17 @@ export async function PATCH(
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ detail });
+    const refreshedDetail =
+      nextStatus === "done"
+        ? ((await refreshLearningRouteTrackingForRoute({
+            userId,
+            routeId: detail.route.id,
+          })) ?? detail)
+        : detail;
+
+    return NextResponse.json({ detail: refreshedDetail });
   } catch (error) {
     console.error("update learning route point failed:", error);
-    return NextResponse.json(
-      { error: "更新学习点失败" },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "更新学习点失败" }, { status: 500 });
   }
 }

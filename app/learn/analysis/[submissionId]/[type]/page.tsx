@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { isValidElement, useEffect, useId, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Loader2, RefreshCw } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import rehypeKatex from "rehype-katex";
+import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import "katex/dist/katex.min.css";
 
@@ -12,6 +13,71 @@ type AnalysisContent = {
   tutoringType: string;
   tutoringContent: string;
 };
+
+function MermaidDiagram({ chart }: { chart: string }) {
+  const renderId = useId().replace(/:/g, "");
+  const [svg, setSvg] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isActive = true;
+
+    const renderChart = async () => {
+      try {
+        const { default: mermaid } = await import("mermaid");
+        mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: "strict",
+          theme: "neutral",
+        });
+
+        const result = await mermaid.render(
+          `analysis-mermaid-${renderId}`,
+          chart,
+        );
+
+        if (!isActive) {
+          return;
+        }
+
+        setSvg(result.svg);
+        setError(null);
+      } catch (err) {
+        if (!isActive) {
+          return;
+        }
+
+        setSvg(null);
+        setError(err instanceof Error ? err.message : "图表渲染失败");
+      }
+    };
+
+    void renderChart();
+
+    return () => {
+      isActive = false;
+    };
+  }, [chart, renderId]);
+
+  return (
+    <div className="mb-3 overflow-x-auto rounded border border-ui bg-background p-3">
+      {error ? (
+        <div className="space-y-2">
+          <div className="text-sm text-rose-600">图表渲染失败：{error}</div>
+          <pre className="overflow-x-auto whitespace-pre-wrap rounded border border-ui bg-panel-strong p-3 text-sm text-foreground">
+            {chart}
+          </pre>
+        </div>
+      ) : svg ? (
+        <div dangerouslySetInnerHTML={{ __html: svg }} />
+      ) : (
+        <pre className="overflow-x-auto whitespace-pre-wrap rounded border border-ui bg-panel-strong p-3 text-sm text-foreground">
+          {chart}
+        </pre>
+      )}
+    </div>
+  );
+}
 
 export default function AnalysisPage() {
   const router = useRouter();
@@ -165,7 +231,7 @@ export default function AnalysisPage() {
 
           <div className="prose prose-sm dark:prose-invert max-w-none">
             <ReactMarkdown
-              remarkPlugins={[remarkMath]}
+              remarkPlugins={[remarkMath, remarkGfm]}
               rehypePlugins={[rehypeKatex]}
               components={{
                 p: ({ children }) => <p className="mb-3">{children}</p>,
@@ -184,6 +250,58 @@ export default function AnalysisPage() {
                     {children}
                   </a>
                 ),
+                table: ({ children }) => (
+                  <div className="mb-3 overflow-x-auto">
+                    <table className="w-full border-collapse border border-ui text-left text-sm">
+                      {children}
+                    </table>
+                  </div>
+                ),
+                thead: ({ children }) => (
+                  <thead className="bg-panel-strong">{children}</thead>
+                ),
+                tbody: ({ children }) => <tbody>{children}</tbody>,
+                tr: ({ children }) => (
+                  <tr className="border-b border-ui last:border-b-0">
+                    {children}
+                  </tr>
+                ),
+                th: ({ children }) => (
+                  <th className="border border-ui px-3 py-2 font-semibold text-foreground">
+                    {children}
+                  </th>
+                ),
+                td: ({ children }) => (
+                  <td className="border border-ui px-3 py-2 align-top text-foreground">
+                    {children}
+                  </td>
+                ),
+                pre: ({ children }) => {
+                  if (isValidElement(children)) {
+                    const childProps = children.props as {
+                      className?: string;
+                      children?: React.ReactNode;
+                    };
+
+                    if (
+                      typeof childProps.className === "string" &&
+                      childProps.className.includes("language-mermaid")
+                    ) {
+                      const chart = String(childProps.children ?? "").replace(
+                        /\n$/,
+                        "",
+                      );
+
+                      return <MermaidDiagram chart={chart} />;
+                    }
+                  }
+
+                  return (
+                    <pre className="overflow-x-auto rounded border border-ui bg-background p-3 mb-3">
+                      {children}
+                    </pre>
+                  );
+                },
                 code: ({ inline, children, ...props }: any) =>
                   inline ? (
                     <code
@@ -195,11 +313,6 @@ export default function AnalysisPage() {
                   ) : (
                     <code {...props}>{children}</code>
                   ),
-                pre: ({ children }) => (
-                  <pre className="overflow-x-auto rounded border border-ui bg-background p-3 mb-3">
-                    {children}
-                  </pre>
-                ),
                 blockquote: ({ children }) => (
                   <blockquote className="border-l-2 border-ui pl-3 text-muted mb-3">
                     {children}

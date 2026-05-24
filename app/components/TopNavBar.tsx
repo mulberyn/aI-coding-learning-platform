@@ -351,11 +351,12 @@ export function TopNavBar({
             aria-label="主导航"
           >
             {routes.map((route) => {
-              const active =
+              const active = Boolean(
                 isRouteActive(route.href, pathname) ||
                 route.children?.some((child) =>
                   isRouteActive(child.href, pathname),
-                );
+                ),
+              );
               const Icon = navIcons[route.href] ?? Home;
 
               if (route.children?.length) {

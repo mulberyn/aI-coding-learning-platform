@@ -5,6 +5,7 @@ import {
   getLearningRouteDetailById,
   getLearningRoutesByUser,
 } from "@/lib/learning-route-db";
+import { refreshLearningRouteTrackingForRoute } from "@/lib/learning-route-tracking";
 import { type GeneratedLearningRoute } from "@/lib/learning-route-types";
 
 function sanitizeGeneratedRoute(input: GeneratedLearningRoute) {
@@ -45,7 +46,18 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ routes, detail: null });
   }
 
-  const detail = await getLearningRouteDetailById({ userId, routeId });
+  let detail = await getLearningRouteDetailById({ userId, routeId });
+
+  if (
+    detail &&
+    !detail.route.tracking &&
+    (detail.route.progress?.completedPoints ?? 0) > 0
+  ) {
+    detail =
+      (await refreshLearningRouteTrackingForRoute({ userId, routeId })) ??
+      detail;
+  }
+
   return NextResponse.json({ routes, detail });
 }
 
@@ -59,7 +71,9 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const source = body?.source === "manual" ? "manual" : "ai";
-    const generated = sanitizeGeneratedRoute(body?.generated as GeneratedLearningRoute);
+    const generated = sanitizeGeneratedRoute(
+      body?.generated as GeneratedLearningRoute,
+    );
 
     if (!generated.routeName || generated.points.length === 0) {
       return NextResponse.json(
@@ -76,12 +90,19 @@ export async function POST(request: NextRequest) {
       generated,
     });
 
-    return NextResponse.json({ detail }, { status: 201 });
+    const hydratedDetail =
+      detail &&
+      !detail.route.tracking &&
+      (detail.route.progress?.completedPoints ?? 0) > 0
+        ? ((await refreshLearningRouteTrackingForRoute({
+            userId,
+            routeId: detail.route.id,
+          })) ?? detail)
+        : detail;
+
+    return NextResponse.json({ detail: hydratedDetail }, { status: 201 });
   } catch (error) {
     console.error("create learning route failed:", error);
-    return NextResponse.json(
-      { error: "保存学习路线失败" },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "保存学习路线失败" }, { status: 500 });
   }
 }

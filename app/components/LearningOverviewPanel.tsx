@@ -2,12 +2,12 @@ import Link from "next/link";
 import {
   ArrowRight,
   Bot,
-  ChartColumnBig,
   BookOpen,
   RefreshCw,
   Sparkles,
   MessageSquareMore,
   Trophy,
+  Cloud,
   Target,
   type LucideIcon,
 } from "lucide-react";
@@ -49,64 +49,17 @@ type LearningOverviewPanelProps = {
   aiSummary: string;
   aiSummaryUpdatedText: string;
   metrics: MetricCard[];
+  weakModules: Array<{
+    topic: string;
+    attempts: number;
+    passRate: number;
+    weaknessScore: number;
+  }>;
   recommendations: RecommendationGroup[];
 };
 
 function formatSeriesValue(value: number, suffix: string) {
   return `${value}${suffix}`;
-}
-
-function buildSparklinePoints(values: number[]) {
-  if (values.length === 0) {
-    return "";
-  }
-
-  const maxValue = Math.max(...values, 1);
-  const width = 100;
-  const height = 36;
-  const step = values.length === 1 ? width : width / (values.length - 1);
-
-  return values
-    .map((value, index) => {
-      const x = index * step;
-      const normalized = value / maxValue;
-      const y = height - normalized * height;
-      return `${x.toFixed(1)},${y.toFixed(1)}`;
-    })
-    .join(" ");
-}
-
-function Sparkline({
-  values,
-  accentClassName,
-}: {
-  values: number[];
-  accentClassName: string;
-}) {
-  return (
-    <div className="rounded-[8px] bg-panel-strong/70 px-3 py-3">
-      <svg
-        viewBox="0 0 100 36"
-        className={`h-10 w-full ${accentClassName}`}
-        aria-hidden="true"
-      >
-        <defs>
-          <linearGradient id="sparkline-fill" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0%" stopColor="currentColor" stopOpacity="0.28" />
-            <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
-          </linearGradient>
-        </defs>
-        <polyline
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          points={buildSparklinePoints(values)}
-        />
-      </svg>
-    </div>
-  );
 }
 
 function SectionTitle({
@@ -153,6 +106,97 @@ function getRecommendationItemIcon(href: string) {
   return MessageSquareMore;
 }
 
+function getBubbleSize(weaknessScore: number) {
+  if (weaknessScore >= 88) {
+    return "h-44 w-44 sm:h-52 sm:w-52";
+  }
+  if (weaknessScore >= 72) {
+    return "h-36 w-36 sm:h-44 sm:w-44";
+  }
+  if (weaknessScore >= 52) {
+    return "h-30 w-30 sm:h-36 sm:w-36";
+  }
+  return "h-24 w-24 sm:h-30 sm:w-30";
+}
+
+function WeakModuleCloud({
+  weakModules,
+}: {
+  weakModules: Array<{
+    topic: string;
+    attempts: number;
+    passRate: number;
+    weaknessScore: number;
+  }>;
+}) {
+  const bubbleModules = weakModules.slice(0, 8);
+
+  function getBubbleBackground(weaknessScore: number) {
+    const clampedScore = Math.max(0, Math.min(100, weaknessScore));
+    const greenRatio = 1 - clampedScore / 100;
+    const red = Math.round(236 - greenRatio * 130);
+    const green = Math.round(72 + greenRatio * 100);
+    const blue = Math.round(72 + greenRatio * 28);
+    const intensity = 0.34 + clampedScore / 150;
+
+    return {
+      background: `radial-gradient(circle at 30% 25%, rgba(255,255,255,0.28), transparent 42%), linear-gradient(135deg, rgba(${red}, ${green}, ${blue}, ${Math.min(0.95, intensity)}), rgba(${Math.max(50, red - 35)}, ${Math.max(80, green - 28)}, ${Math.max(52, blue - 20)}, ${Math.max(0.22, intensity - 0.16)}))`,
+    };
+  }
+
+  return (
+    <div className="rounded-[10px] border border-ui bg-panel px-5 py-5">
+      <SectionTitle
+        Icon={Cloud}
+        title="薄弱板块云图"
+        description="气泡越大，表示该知识点越薄弱；优先补强气泡更明显的部分。"
+      />
+
+      <div className="mt-5 min-h-[260px] rounded-[10px] border border-ui bg-[linear-gradient(180deg,var(--bg),color-mix(in_srgb,var(--bg)_88%,transparent))] p-4 sm:min-h-[300px]">
+        {bubbleModules.length > 0 ? (
+          <div className="flex min-h-[220px] flex-wrap items-center justify-center gap-3 sm:min-h-[260px] sm:gap-4">
+            {bubbleModules.map((module, index) => {
+              const sizeClass = getBubbleSize(module.weaknessScore);
+              const delay = `${index * 60}ms`;
+              const labelBackground = getBubbleBackground(module.weaknessScore);
+
+              return (
+                <Link
+                  key={module.topic}
+                  href={`/problems/topics/${encodeURIComponent(module.topic)}`}
+                  className={`group relative flex shrink-0 items-center justify-center rounded-full border border-white/20 text-center shadow-sm transition duration-300 ease-out hover:scale-105 hover:shadow-lg dark:border-white/10 ${sizeClass}`}
+                  style={{
+                    ...labelBackground,
+                    transformOrigin: "center",
+                    animationDelay: delay,
+                  }}
+                >
+                  <div className="flex h-full w-full flex-col items-center justify-center rounded-full px-4 py-4 text-white">
+                    <span className="text-sm font-medium leading-5 drop-shadow-sm sm:text-base">
+                      {module.topic}
+                    </span>
+                    <span className="mt-2 text-xs text-white/85">
+                      薄弱度 {module.weaknessScore}
+                    </span>
+                    <span className="mt-1 text-[11px] text-white/75">
+                      {module.attempts} 次尝试 · 通过率{" "}
+                      {Math.round(module.passRate * 100)}%
+                    </span>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="flex min-h-[220px] items-center justify-center rounded-[10px] border border-dashed border-ui text-sm text-muted sm:min-h-[260px]">
+            暂无足够数据生成薄弱板块云图
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function LearningOverviewPanel({
   userId,
   displayName,
@@ -161,6 +205,7 @@ export function LearningOverviewPanel({
   aiSummary,
   aiSummaryUpdatedText,
   metrics,
+  weakModules,
   recommendations,
 }: LearningOverviewPanelProps) {
   return (
@@ -232,54 +277,8 @@ export function LearningOverviewPanel({
         </div>
       </section>
 
-      <section className="mt-8 space-y-5">
-        <SectionTitle
-          Icon={ChartColumnBig}
-          title="最近四周趋势"
-          description="每个指标都用四周数据绘制成轻量折线，方便快速看出节奏变化。"
-        />
-
-        <div className="grid gap-3 xl:grid-cols-4">
-          {metrics.map((metric) => (
-            <article
-              key={`${metric.label}-trend`}
-              className="rounded-[10px] border border-ui bg-panel px-4 py-4"
-            >
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm font-medium">{metric.label}</p>
-                  <p className="mt-1 text-xs text-muted">近四周走势</p>
-                </div>
-                <metric.Icon className="h-4 w-4 text-muted" />
-              </div>
-
-              <div className="mt-4">
-                <Sparkline
-                  values={metric.series}
-                  accentClassName={metric.accentClassName}
-                />
-              </div>
-
-              <div className="mt-3 grid grid-cols-4 gap-2 text-[11px] text-muted tabular-nums">
-                {metric.series.map((value, index) => (
-                  <div
-                    key={`${metric.label}-${index}`}
-                    className="rounded-[10px] bg-panel-strong/70 px-2 py-2 text-center"
-                  >
-                    <p>
-                      {index === metric.series.length - 1
-                        ? "本周"
-                        : `${metric.series.length - index} 周前`}
-                    </p>
-                    <p className="mt-1 text-current">
-                      {formatSeriesValue(value, metric.suffix)}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </article>
-          ))}
-        </div>
+      <section className="mt-8">
+        <WeakModuleCloud weakModules={weakModules} />
       </section>
 
       <section className="mt-8 grid gap-4 lg:grid-cols-[1.05fr_0.95fr]">

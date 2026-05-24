@@ -188,6 +188,10 @@ export default async function AnalyticsPage() {
       topic,
       attempts: stat.attempts,
       passRate: stat.attempts > 0 ? stat.accepted / stat.attempts : 0,
+      weaknessScore: Math.round(
+        (1 - (stat.attempts > 0 ? stat.accepted / stat.attempts : 0)) * 85 +
+          Math.min(15, stat.attempts * 2),
+      ),
     }))
     .filter((item) => item.attempts >= 2)
     .sort((a, b) => a.passRate - b.passRate)
@@ -306,6 +310,7 @@ export default async function AnalyticsPage() {
         aiSummary={aiSummary}
         aiSummaryUpdatedText={aiSummaryUpdatedText}
         metrics={metrics}
+        weakModules={weakModules}
         recommendations={recommendations}
       />
     </SiteShell>

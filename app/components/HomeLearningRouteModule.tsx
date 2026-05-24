@@ -20,7 +20,9 @@ export function HomeLearningRouteModule() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [generated, setGenerated] = useState<GeneratedLearningRoute | null>(null);
+  const [generated, setGenerated] = useState<GeneratedLearningRoute | null>(
+    null,
+  );
   const [savedRoutes, setSavedRoutes] = useState<LearningRoute[]>([]);
   const [latestDetail, setLatestDetail] =
     useState<LearningRouteWithPoints | null>(null);
@@ -116,7 +118,7 @@ export function HomeLearningRouteModule() {
   };
 
   return (
-    <section className="rounded-[22px] border border-ui bg-panel/95 px-6 py-6">
+    <section className="rounded-lg border border-ui bg-panel/95 px-6 py-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-xs font-medium uppercase tracking-[0.32em] text-muted">
@@ -128,7 +130,7 @@ export function HomeLearningRouteModule() {
         </div>
         <Link
           href="/learn/route"
-          className="inline-flex items-center gap-2 rounded-[10px] border border-ui bg-panel-strong px-4 py-2 text-sm font-medium transition hover:bg-panel"
+          className="inline-flex items-center gap-2 rounded-md border border-ui bg-panel-strong px-4 py-2 text-sm font-medium transition hover:bg-panel"
         >
           <TimerReset className="h-4 w-4" />
           打开学习路线工作台
@@ -140,24 +142,32 @@ export function HomeLearningRouteModule() {
           value={topic}
           onChange={(event) => setTopic(event.target.value)}
           placeholder="输入学习目标或知识点，例如：二分答案、并查集"
-          className="h-10 rounded-[10px] border border-ui bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-cyan-500/35"
+          className="h-10 rounded-md border border-ui bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-cyan-500/35"
         />
         <button
           type="button"
           onClick={handleGenerate}
           disabled={loading}
-          className="inline-flex h-10 items-center justify-center gap-2 rounded-[10px] border border-ui bg-panel-strong px-4 text-sm font-medium transition hover:bg-panel disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-ui bg-panel-strong px-4 text-sm font-medium transition hover:bg-panel disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+          {loading ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Sparkles className="h-4 w-4" />
+          )}
           生成学习路线
         </button>
         <button
           type="button"
           onClick={handleSave}
           disabled={!generated || saving}
-          className="inline-flex h-10 items-center justify-center gap-2 rounded-[10px] bg-[#dbeafe] px-4 text-sm font-medium text-[#1d4ed8] transition hover:bg-[#bfdbfe] disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-[#dbeafe] px-4 text-sm font-medium text-[#1d4ed8] transition hover:bg-[#bfdbfe] disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+          {saving ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Save className="h-4 w-4" />
+          )}
           保存
         </button>
       </div>
@@ -165,7 +175,7 @@ export function HomeLearningRouteModule() {
       {message ? <p className="mt-3 text-sm text-muted">{message}</p> : null}
 
       {generated ? (
-        <div className="mt-4 rounded-[14px] border border-ui bg-panel-strong/60 px-4 py-4">
+        <div className="mt-4 rounded-lg border border-ui bg-panel-strong/60 px-4 py-4">
           <div className="flex items-center gap-2 text-sm font-medium">
             <Bot className="h-4 w-4" />
             {generated.routeName}
@@ -176,7 +186,9 @@ export function HomeLearningRouteModule() {
             {generated.points.slice(0, 6).map((point, index) => (
               <div key={`${point.title}-${index}`} className="flex gap-3">
                 <div className="mt-1.5 flex w-8 flex-col items-center">
-                  <span className={`h-3 w-3 rounded-full ${statusColor("pending")}`} />
+                  <span
+                    className={`h-3 w-3 rounded-full ${statusColor("pending")}`}
+                  />
                   {index < generated.points.length - 1 ? (
                     <span className="mt-1 h-8 w-px bg-border" />
                   ) : null}
@@ -192,7 +204,7 @@ export function HomeLearningRouteModule() {
       ) : null}
 
       {(latestDetail || savedRoutes.length > 0) && (
-        <div className="mt-4 rounded-[14px] border border-ui bg-panel-strong/40 px-4 py-3">
+        <div className="mt-4 rounded-lg border border-ui bg-panel-strong/40 px-4 py-3">
           <p className="text-sm font-medium">已保存学习路线</p>
           <ul className="mt-2 space-y-1.5 text-sm text-muted">
             {(latestDetail ? [latestDetail.route, ...savedRoutes] : savedRoutes)

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { FORUM_BOARD_LABEL_MAP } from "@/lib/forum";
+import { getProblemCatalog } from "@/lib/problems";
 import {
   type GeneratedLearningRoute,
   type LearningRoutePointType,
@@ -13,6 +15,43 @@ const QWEN_API_URL =
 type ChatMessage = {
   role: "system" | "user";
   content: string;
+};
+
+type CandidateProblem = {
+  slug: string;
+  title: string;
+  topic: string;
+  difficulty: string;
+  acceptanceRate: number;
+  solvedCount: number;
+};
+
+type CandidateContest = {
+  id: string;
+  title: string;
+  type: string;
+  format: string;
+  status: string;
+  participantCount: number;
+};
+
+type CandidateForumPost = {
+  id: string;
+  title: string;
+  board: string;
+  problemSlug: string | null;
+  problemTitle: string | null;
+  isPinned: boolean;
+  replyCount: number;
+};
+
+type AllowedRefs = {
+  problemSlugs: Set<string>;
+  contestIds: Set<string>;
+  forumIds: Set<string>;
+  problemTitles: Map<string, string>;
+  contestTitles: Map<string, string>;
+  forumTitles: Map<string, string>;
 };
 
 function getProviderEndpoint(provider: string) {
@@ -79,6 +118,60 @@ function toSafePointType(value: unknown): LearningRoutePointType {
   return "custom";
 }
 
+function normalizeText(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, "");
+}
+
+function buildProblemCatalogSummary(problems: CandidateProblem[]) {
+  const grouped = new Map<string, CandidateProblem[]>();
+
+  for (const problem of problems) {
+    const list = grouped.get(problem.topic) ?? [];
+    list.push(problem);
+    grouped.set(problem.topic, list);
+  }
+
+  return Array.from(grouped.entries())
+    .map(([topic, list]) => {
+      const examples = list
+        .slice(0, 6)
+        .map(
+          (item) =>
+            `${item.slug}｜${item.title}｜${item.difficulty}｜通过率 ${(item.acceptanceRate * 100).toFixed(1)}%｜过题 ${item.solvedCount} 人`,
+        )
+        .join("；");
+      return `知识点 ${topic}：${examples}`;
+    })
+    .join("\n");
+}
+
+function buildContestCatalogSummary(contests: CandidateContest[]) {
+  return contests
+    .map(
+      (contest) =>
+        `${contest.id}｜${contest.title}｜${contest.type}｜${contest.format}｜${contest.status}｜${contest.participantCount} 人`,
+    )
+    .join("\n");
+}
+
+function buildForumCatalogSummary(posts: CandidateForumPost[]) {
+  return posts
+    .map((post) => {
+      const boardLabel =
+        FORUM_BOARD_LABEL_MAP[
+          post.board as keyof typeof FORUM_BOARD_LABEL_MAP
+        ] ?? post.board;
+      const relatedProblem = post.problemSlug
+        ? `关联题目 ${post.problemSlug}${post.problemTitle ? `（${post.problemTitle}）` : ""}`
+        : "无关联题目";
+      return `${post.id}｜${post.title}｜${boardLabel}｜${relatedProblem}｜${post.isPinned ? "置顶" : "普通"}｜${post.replyCount} 回复`;
+    })
+    .join("\n");
+}
+
 function fallbackGeneratedRoute(topic: string): GeneratedLearningRoute {
   const now = new Date();
   const day = 24 * 60 * 60 * 1000;
@@ -87,7 +180,8 @@ function fallbackGeneratedRoute(topic: string): GeneratedLearningRoute {
 
   return {
     routeName: `${topic} 学习路线`,
-    summary: "先完成基础知识梳理，再通过题目和讨论逐步强化，最后做一次阶段复盘。",
+    summary:
+      "先完成基础知识梳理，再通过题目和讨论逐步强化，最后做一次阶段复盘。",
     points: [
       {
         title: `梳理 ${topic} 的核心概念与模板`,
@@ -121,7 +215,11 @@ function fallbackGeneratedRoute(topic: string): GeneratedLearningRoute {
   };
 }
 
-function parseGeneratedRoute(raw: string, topic: string): GeneratedLearningRoute {
+function parseGeneratedRoute(
+  raw: string,
+  topic: string,
+  allowedRefs: AllowedRefs,
+): GeneratedLearningRoute {
   try {
     const start = raw.indexOf("{");
     const end = raw.lastIndexOf("}");
@@ -166,18 +264,75 @@ function parseGeneratedRoute(raw: string, topic: string): GeneratedLearningRoute
           .slice(0, 16)
       : [];
 
-    if (points.length === 0) {
+    const validatedPoints = points.map((point) => {
+      const refId = point.refId?.trim() || null;
+      if (!refId) {
+        return point;
+      }
+
+      const normalizedTitle = normalizeText(point.title);
+
+      if (point.pointType === "problem") {
+        if (allowedRefs.problemSlugs.has(refId)) {
+          return point;
+        }
+
+        const matched = Array.from(allowedRefs.problemTitles.entries()).find(
+          ([title]) => normalizeText(title) === normalizedTitle,
+        );
+        return {
+          ...point,
+          refId: matched ? matched[1] : null,
+        };
+      }
+
+      if (point.pointType === "contest") {
+        if (allowedRefs.contestIds.has(refId)) {
+          return point;
+        }
+
+        const matched = Array.from(allowedRefs.contestTitles.entries()).find(
+          ([title]) => normalizeText(title) === normalizedTitle,
+        );
+        return {
+          ...point,
+          refId: matched ? matched[1] : null,
+        };
+      }
+
+      if (point.pointType === "forum") {
+        if (allowedRefs.forumIds.has(refId)) {
+          return point;
+        }
+
+        const matched = Array.from(allowedRefs.forumTitles.entries()).find(
+          ([title]) => normalizeText(title) === normalizedTitle,
+        );
+        return {
+          ...point,
+          refId: matched ? matched[1] : null,
+        };
+      }
+
+      return point;
+    });
+
+    if (validatedPoints.length === 0) {
       return fallbackGeneratedRoute(topic);
     }
 
-    return { routeName, summary, points };
+    return { routeName, summary, points: validatedPoints };
   } catch {
     return fallbackGeneratedRoute(topic);
   }
 }
 
 function summarizeHistory(params: {
-  submissions: Array<{ createdAt: Date; status: string; problem: { title: string; topic: string } }>;
+  submissions: Array<{
+    createdAt: Date;
+    status: string;
+    problem: { title: string; topic: string };
+  }>;
   posts: Array<{ title: string; board: string }>;
   contests: Array<{ contest: { title: string; status: string } }>;
 }) {
@@ -187,7 +342,10 @@ function summarizeHistory(params: {
     (submission) => submission.status === "ACCEPTED",
   ).length;
 
-  const topicAttempts = new Map<string, { attempts: number; accepted: number }>();
+  const topicAttempts = new Map<
+    string,
+    { attempts: number; accepted: number }
+  >();
   for (const submission of submissions) {
     const item = topicAttempts.get(submission.problem.topic) ?? {
       attempts: 0,
@@ -216,7 +374,9 @@ function summarizeHistory(params: {
     acceptedCount,
     weakTopics,
     recentProblems: submissions.slice(0, 8).map((item) => item.problem.title),
-    recentPosts: posts.slice(0, 6).map((item) => `${item.title}(${item.board})`),
+    recentPosts: posts
+      .slice(0, 6)
+      .map((item) => `${item.title}(${item.board})`),
     recentContests: contests
       .slice(0, 4)
       .map((item) => `${item.contest.title}(${item.contest.status})`),
@@ -318,23 +478,157 @@ export async function POST(request: NextRequest) {
       contests: user.contestRegistrations,
     });
 
+    const [problemCatalog, contestRows, forumRows] = await Promise.all([
+      getProblemCatalog(),
+      prisma.contest.findMany({
+        orderBy: [{ createdAt: "desc" }],
+        take: 24,
+        select: {
+          id: true,
+          title: true,
+          type: true,
+          format: true,
+          status: true,
+          participantCount: true,
+        },
+      }),
+      prisma.forumPost.findMany({
+        orderBy: [{ isPinned: "desc" }, { createdAt: "desc" }],
+        take: 24,
+        select: {
+          id: true,
+          title: true,
+          board: true,
+          isPinned: true,
+          problem: {
+            select: { slug: true, title: true },
+          },
+          _count: {
+            select: { comments: true },
+          },
+        },
+      }),
+    ]);
+
+    const targetTopics = Array.from(new Set([topic, ...behavior.weakTopics]));
+
+    const candidateProblems = problemCatalog
+      .filter((problem) =>
+        targetTopics.some(
+          (item) =>
+            normalizeText(problem.topic) === normalizeText(item) ||
+            normalizeText(problem.title).includes(normalizeText(item)),
+        ),
+      )
+      .concat(problemCatalog.slice(0, 20))
+      .filter(
+        (problem, index, self) =>
+          self.findIndex((item) => item.slug === problem.slug) === index,
+      )
+      .slice(0, 40)
+      .map((problem) => ({
+        slug: problem.slug,
+        title: problem.title,
+        topic: problem.topic,
+        difficulty: problem.difficulty,
+        acceptanceRate: problem.acceptanceRate,
+        solvedCount: problem.solvedCount,
+      }));
+
+    const candidateContests = contestRows
+      .filter((contest) =>
+        targetTopics.some(
+          (item) =>
+            normalizeText(contest.title).includes(normalizeText(item)) ||
+            /基础赛|进阶赛|专题赛|训练赛|练习赛|比赛/i.test(contest.title),
+        ),
+      )
+      .concat(contestRows.slice(0, 12))
+      .filter(
+        (contest, index, self) =>
+          self.findIndex((item) => item.id === contest.id) === index,
+      )
+      .slice(0, 24)
+      .map((contest) => ({
+        id: contest.id,
+        title: contest.title,
+        type: contest.type,
+        format: contest.format,
+        status: contest.status,
+        participantCount: contest.participantCount,
+      }));
+
+    const candidateForumPosts = forumRows
+      .filter((post) =>
+        targetTopics.some(
+          (item) =>
+            normalizeText(post.title).includes(normalizeText(item)) ||
+            (post.problem?.title &&
+              normalizeText(post.problem.title).includes(normalizeText(item))),
+        ),
+      )
+      .concat(forumRows.slice(0, 12))
+      .filter(
+        (post, index, self) =>
+          self.findIndex((item) => item.id === post.id) === index,
+      )
+      .slice(0, 24)
+      .map((post) => ({
+        id: post.id,
+        title: post.title,
+        board: post.board,
+        problemSlug: post.problem?.slug ?? null,
+        problemTitle: post.problem?.title ?? null,
+        isPinned: post.isPinned,
+        replyCount: post._count.comments,
+      }));
+
+    const allowedRefs: AllowedRefs = {
+      problemSlugs: new Set(candidateProblems.map((item) => item.slug)),
+      contestIds: new Set(candidateContests.map((item) => item.id)),
+      forumIds: new Set(candidateForumPosts.map((item) => item.id)),
+      problemTitles: new Map(
+        candidateProblems.map((item) => [item.title, item.slug]),
+      ),
+      contestTitles: new Map(
+        candidateContests.map((item) => [item.title, item.id]),
+      ),
+      forumTitles: new Map(
+        candidateForumPosts.map((item) => [item.title, item.id]),
+      ),
+    };
+
+    const secondaryTopics = behavior.weakTopics.filter(
+      (item) => normalizeText(item) !== normalizeText(topic),
+    );
+
     const prompt = [
       "请生成一个学习路线 JSON（不要输出任何解释文本，只输出 JSON 对象）。",
       "JSON 格式：",
-      '{"routeName":"","summary":"","points":[{"title":"","description":"","pointType":"problem|contest|forum|custom","targetDate":"YYYY-MM-DD"}]}',
+      '{"routeName":"","summary":"","points":[{"title":"","description":"","pointType":"problem|contest|forum|custom","refId":"","targetDate":"YYYY-MM-DD"}]}',
       "规则：",
-      "1. points 数量 4-8 个，按时间顺序。",
-      "2. 学习点必须可执行，动词开头，描述简洁。",
-      "3. 结合用户历史数据，优先补足薄弱模块。",
-      "4. 时间线给出未来 1-21 天内的目标日期。",
-      `用户输入学习目标：${topic}`,
+      "1. 用户输入的学习目标是主线，必须作为学习路线的核心内容，不能被其他薄弱模块替代；如果用户明确指定了动态规划、搜索、图论等主题，必须围绕该主题展开，不要把路线改写成别的主题。",
+      "2. 学习路线要循序渐进，建议按 7:3 的比例组织内容：约 70% 聚焦用户输入的主线主题，约 30% 结合历史薄弱点做补强，但补强内容必须服务于主线，不得喧宾夺主。",
+      "3. 如果存在前置知识点，先安排前置知识点，再安排主线练习，最后补充后置推荐知识点或拓展训练。",
+      "4. points 数量 4-8 个，按时间顺序，内容要从易到难、从概念到实战。",
+      "5. 学习点必须可执行，动词开头，描述简洁，尽量明确到可直接执行的任务。",
+      "6. 时间线给出未来 1-21 天内的目标日期。",
+      "7. refId 必须从下方候选里选择，不允许编造不存在的内容。",
+      "8. 如果点名了题目、比赛或讨论帖，请优先使用对应 pointType，并填写候选中的真实 refId。",
+      `主线学习目标：${topic}`,
+      `可作为补强的薄弱模块：${secondaryTopics.join("、") || "暂无"}`,
       `用户昵称：${user.name}`,
       `最近提交次数：${behavior.submissionCount}`,
       `最近通过次数：${behavior.acceptedCount}`,
-      `薄弱模块：${behavior.weakTopics.join("、") || "暂无明确薄弱模块"}`,
       `最近题目：${behavior.recentProblems.join("、") || "暂无"}`,
       `最近论坛活动：${behavior.recentPosts.join("、") || "暂无"}`,
       `最近比赛记录：${behavior.recentContests.join("、") || "暂无"}`,
+      "可用真实题目候选（slug｜title｜topic｜difficulty｜acceptanceRate｜solvedCount）：",
+      buildProblemCatalogSummary(candidateProblems),
+      "可用真实比赛候选（id｜title｜type｜format｜status｜participantCount）：",
+      buildContestCatalogSummary(candidateContests),
+      "可用真实讨论帖候选（id｜title｜board｜related problem｜pinned｜replyCount）：",
+      buildForumCatalogSummary(candidateForumPosts),
     ].join("\n");
 
     const raw = await callProviderChat({
@@ -345,13 +639,13 @@ export async function POST(request: NextRequest) {
         {
           role: "system",
           content:
-            "你是在线编程学习平台的学习路径规划器，擅长根据用户行为数据做个性化学习路线。",
+            "你是在线编程学习平台的学习路径规划器，擅长根据用户明确的学习目标做个性化学习路线，并在不偏离主线的前提下补充前置知识、弱项补强和后置推荐。",
         },
         { role: "user", content: prompt },
       ],
     });
 
-    const generated = parseGeneratedRoute(raw, topic);
+    const generated = parseGeneratedRoute(raw, topic, allowedRefs);
 
     return NextResponse.json({
       generated,
