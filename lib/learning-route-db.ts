@@ -57,15 +57,29 @@ async function ensureLearningRouteTables() {
       ref_id TEXT,
       target_date TEXT,
       status TEXT NOT NULL DEFAULT 'pending',
+      manual_status TEXT,
       sort_order INTEGER NOT NULL DEFAULT 0,
       FOREIGN KEY(route_id) REFERENCES learning_routes(id) ON DELETE CASCADE
     );
   `);
 
+  const pointColumns = await prisma.$queryRawUnsafe<Array<{ name: string }>>(
+    `PRAGMA table_info(learning_route_points);`,
+  );
+
+  if (!pointColumns.some((column) => column.name === "manual_status")) {
+    await prisma.$executeRawUnsafe(
+      `ALTER TABLE learning_route_points ADD COLUMN manual_status TEXT;`,
+    );
+  }
+
   await prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS learning_route_tracking (
       route_id TEXT PRIMARY KEY,
       summary TEXT NOT NULL DEFAULT '',
+      quality_score INTEGER NOT NULL DEFAULT 0,
+      study_summary TEXT NOT NULL DEFAULT '',
+      next_route_prompt TEXT NOT NULL DEFAULT '',
       analysis TEXT NOT NULL DEFAULT '[]',
       suggestions TEXT NOT NULL DEFAULT '[]',
       snippets TEXT NOT NULL DEFAULT '[]',
@@ -74,6 +88,22 @@ async function ensureLearningRouteTables() {
       FOREIGN KEY(route_id) REFERENCES learning_routes(id) ON DELETE CASCADE
     );
   `);
+
+  const trackingColumns = await prisma.$queryRawUnsafe<Array<{ name: string }>>(
+    `PRAGMA table_info(learning_route_tracking);`,
+  );
+
+  for (const [columnName, columnDefinition] of [
+    ["quality_score", "INTEGER NOT NULL DEFAULT 0"],
+    ["study_summary", "TEXT NOT NULL DEFAULT ''"],
+    ["next_route_prompt", "TEXT NOT NULL DEFAULT ''"],
+  ] as const) {
+    if (!trackingColumns.some((column) => column.name === columnName)) {
+      await prisma.$executeRawUnsafe(
+        `ALTER TABLE learning_route_tracking ADD COLUMN ${columnName} ${columnDefinition};`,
+      );
+    }
+  }
 
   await prisma.$executeRawUnsafe(
     "CREATE INDEX IF NOT EXISTS idx_learning_routes_user_created ON learning_routes(user_id, created_at DESC);",
@@ -111,12 +141,16 @@ type PointRow = {
   ref_id: string | null;
   target_date: string | null;
   status: LearningRoutePointStatus;
+  manual_status: LearningRoutePointStatus | null;
   sort_order: number;
 };
 
 type TrackingRow = {
   route_id: string;
   summary: string;
+  quality_score: number;
+  study_summary: string;
+  next_route_prompt: string;
   analysis: string;
   suggestions: string;
   snippets: string;
@@ -161,6 +195,17 @@ function buildPointLinkLabel(pointType: PointRow["point_type"]) {
 function computeRouteProgress(points: LearningRoutePoint[]) {
   const totalPoints = points.length;
   const completedPoints = points.filter((point) => {
+    if (point.manualStatus === "done") {
+      return true;
+    }
+
+    if (
+      point.manualStatus === "pending" ||
+      point.manualStatus === "in_progress"
+    ) {
+      return false;
+    }
+
     if (point.pointType === "problem") {
       return point.problemAttemptState === "SOLVED";
     }
@@ -345,6 +390,9 @@ function parseTrackingRow(row: TrackingRow): LearningRouteTracking {
 
   return {
     summary: row.summary,
+    qualityScore: row.quality_score,
+    studySummary: row.study_summary,
+    nextRoutePrompt: row.next_route_prompt,
     analysis: parseTextArray(row.analysis),
     suggestions: parseSuggestionArray(row.suggestions),
     snippets: parseSnippetArray(row.snippets),
@@ -363,6 +411,7 @@ function mapPointRow(row: PointRow): LearningRoutePoint {
     refId: row.ref_id,
     targetDate: row.target_date,
     status: row.status,
+    manualStatus: row.manual_status,
     sortOrder: row.sort_order,
   };
 }
@@ -409,7 +458,7 @@ export async function getLearningRouteDetailById(params: {
 
   const pointRows = await prisma.$queryRawUnsafe<PointRow[]>(
     `
-      SELECT id, route_id, title, description, point_type, ref_id, target_date, status, sort_order
+      SELECT id, route_id, title, description, point_type, ref_id, target_date, status, manual_status, sort_order
       FROM learning_route_points
       WHERE route_id = ?
       ORDER BY sort_order ASC;
@@ -481,6 +530,9 @@ export async function getLearningRouteDetailById(params: {
 export async function upsertLearningRouteTracking(params: {
   routeId: string;
   summary: string;
+  qualityScore: number;
+  studySummary: string;
+  nextRoutePrompt: string;
   analysis: string[];
   suggestions: Array<{
     title: string;
@@ -497,6 +549,9 @@ export async function upsertLearningRouteTracking(params: {
   const {
     routeId,
     summary,
+    qualityScore,
+    studySummary,
+    nextRoutePrompt,
     analysis,
     suggestions,
     snippets,
@@ -509,14 +564,20 @@ export async function upsertLearningRouteTracking(params: {
       INSERT INTO learning_route_tracking (
         route_id,
         summary,
+        quality_score,
+        study_summary,
+        next_route_prompt,
         analysis,
         suggestions,
         snippets,
         completion_signature,
         updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(route_id) DO UPDATE SET
         summary = excluded.summary,
+        quality_score = excluded.quality_score,
+        study_summary = excluded.study_summary,
+        next_route_prompt = excluded.next_route_prompt,
         analysis = excluded.analysis,
         suggestions = excluded.suggestions,
         snippets = excluded.snippets,
@@ -525,6 +586,9 @@ export async function upsertLearningRouteTracking(params: {
     `,
     routeId,
     summary,
+    qualityScore,
+    studySummary,
+    nextRoutePrompt,
     JSON.stringify(analysis),
     JSON.stringify(suggestions),
     JSON.stringify(snippets),
@@ -609,8 +673,17 @@ export async function updateLearningRoutePoint(params: {
   title?: string;
   description?: string;
   targetDate?: string | null;
+  manualStatus?: LearningRoutePointStatus | null;
 }) {
-  const { userId, pointId, status, title, description, targetDate } = params;
+  const {
+    userId,
+    pointId,
+    status,
+    title,
+    description,
+    targetDate,
+    manualStatus,
+  } = params;
   await ensureLearningRouteTables();
 
   const rows = await prisma.$queryRawUnsafe<Array<{ route_id: string }>>(
@@ -630,10 +703,18 @@ export async function updateLearningRoutePoint(params: {
     return null;
   }
 
-  if (status !== undefined) {
+  if (status !== undefined && manualStatus === undefined) {
     await prisma.$executeRawUnsafe(
       `UPDATE learning_route_points SET status = ? WHERE id = ?;`,
       status,
+      pointId,
+    );
+  }
+
+  if (manualStatus !== undefined) {
+    await prisma.$executeRawUnsafe(
+      `UPDATE learning_route_points SET manual_status = ? WHERE id = ?;`,
+      manualStatus,
       pointId,
     );
   }

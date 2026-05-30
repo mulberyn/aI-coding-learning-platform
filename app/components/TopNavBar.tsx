@@ -14,6 +14,7 @@ import {
   MessageSquareMore,
   Monitor,
   Moon,
+  Video,
   Sun,
   Trophy,
   Route as RouteIcon,
@@ -52,6 +53,7 @@ type TopNavBarProps = {
 const navIcons: Record<string, LucideIcon> = {
   "/": Home,
   "/problems": BookOpen,
+  "/videos": Video,
   "/analytics": Bot,
   "/submissions": FolderOpen,
   "/contests": Trophy,

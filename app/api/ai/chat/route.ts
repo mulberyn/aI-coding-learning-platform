@@ -11,6 +11,132 @@ type ChatMessage = {
   content: string;
 };
 
+type SubmissionSummary = {
+  createdAt: Date;
+  status: string;
+  score: number;
+  problem: {
+    title: string;
+    topic: string;
+    difficulty: string;
+    slug: string;
+  };
+};
+
+function formatPercentage(value: number) {
+  return `${(value * 100).toFixed(1)}%`;
+}
+
+function buildLearningBackground(params: {
+  name: string;
+  aiWeeklySummary: string | null;
+  submissions: SubmissionSummary[];
+}) {
+  const { name, aiWeeklySummary, submissions } = params;
+  const totalSubmissions = submissions.length;
+  const acceptedSubmissions = submissions.filter(
+    (submission) => submission.status === "ACCEPTED",
+  ).length;
+  const acceptedRate =
+    totalSubmissions > 0 ? acceptedSubmissions / totalSubmissions : 0;
+  const now = Date.now();
+  const last7Days = submissions.filter(
+    (submission) =>
+      now - submission.createdAt.getTime() <= 7 * 24 * 60 * 60 * 1000,
+  );
+
+  const topicStats = new Map<
+    string,
+    {
+      attempts: number;
+      accepted: number;
+      latestTitle: string;
+      latestDifficulty: string;
+    }
+  >();
+
+  for (const submission of submissions) {
+    const current = topicStats.get(submission.problem.topic) ?? {
+      attempts: 0,
+      accepted: 0,
+      latestTitle: submission.problem.title,
+      latestDifficulty: submission.problem.difficulty,
+    };
+
+    current.attempts += 1;
+    if (submission.status === "ACCEPTED") {
+      current.accepted += 1;
+    }
+    topicStats.set(submission.problem.topic, {
+      ...current,
+      latestTitle: submission.problem.title,
+      latestDifficulty: submission.problem.difficulty,
+    });
+  }
+
+  const weakTopics = Array.from(topicStats.entries())
+    .map(([topic, stat]) => ({
+      topic,
+      attempts: stat.attempts,
+      accepted: stat.accepted,
+      passRate: stat.attempts > 0 ? stat.accepted / stat.attempts : 0,
+      latestTitle: stat.latestTitle,
+      latestDifficulty: stat.latestDifficulty,
+    }))
+    .filter((item) => item.attempts >= 2)
+    .sort((a, b) => a.passRate - b.passRate)
+    .slice(0, 3);
+
+  const recentSubmissions = submissions.slice(0, 5).map((submission) => {
+    const dateText = new Intl.DateTimeFormat("zh-CN", {
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(submission.createdAt);
+
+    return `${dateText}｜${submission.problem.title}｜${submission.problem.topic}｜${submission.status}｜得分 ${submission.score}`;
+  });
+
+  const backgroundLines = [
+    `- 学习者：${name}`,
+    totalSubmissions > 0
+      ? `- 平台内提交记录：累计 ${totalSubmissions} 次，${acceptedSubmissions} 次通过，通过率 ${formatPercentage(acceptedRate)}`
+      : "- 平台内提交记录：当前还没有可用的提交记录",
+    `- 最近 7 天提交：${last7Days.length} 次`,
+  ];
+
+  if (weakTopics.length > 0) {
+    backgroundLines.push(
+      `- 薄弱知识点：${weakTopics
+        .map(
+          (item) =>
+            `${item.topic}（${item.attempts} 次，${formatPercentage(item.passRate)}）`,
+        )
+        .join("、")}`,
+    );
+  } else {
+    backgroundLines.push("- 薄弱知识点：当前没有足够多的重复尝试样本");
+  }
+
+  if (aiWeeklySummary?.trim()) {
+    backgroundLines.push(
+      `- 平台 AI 周报：${aiWeeklySummary.trim().replace(/\s+/g, " ")}`,
+    );
+  }
+
+  if (recentSubmissions.length > 0) {
+    backgroundLines.push("- 最近提交样本：");
+    backgroundLines.push(...recentSubmissions.map((item) => `  - ${item}`));
+  }
+
+  backgroundLines.push(
+    "- 说明：以上背景仅来自本平台可见的学习数据与统计，不包含平台外信息。",
+  );
+
+  return backgroundLines.join("\n");
+}
+
 function getProviderEndpoint(provider: string) {
   if (provider === "qwen") {
     return QWEN_API_URL;
@@ -85,6 +211,7 @@ export async function POST(request: NextRequest) {
         aiProvider: true,
         aiModel: true,
         aiApiKey: true,
+        aiWeeklySummary: true,
         apiKeyConfigs: {
           where: { isActive: true },
           orderBy: { createdAt: "asc" },
@@ -94,6 +221,23 @@ export async function POST(request: NextRequest) {
             model: true,
             apiKey: true,
             name: true,
+          },
+        },
+        submissions: {
+          orderBy: { createdAt: "desc" },
+          take: 80,
+          select: {
+            createdAt: true,
+            status: true,
+            score: true,
+            problem: {
+              select: {
+                title: true,
+                topic: true,
+                difficulty: true,
+                slug: true,
+              },
+            },
           },
         },
       },
@@ -120,10 +264,22 @@ export async function POST(request: NextRequest) {
     }
 
     const systemPrompt =
-      "你是一个面向在线评测平台的 AI 学习助手。请用简洁、自然、专业的中文回答，优先结合用户提供的上下文、题目与学习目标。支持 Markdown 和数学公式输出。";
+      "你是一个面向在线评测平台的 AI 学习助手。请用简洁、自然、专业的中文回答，优先结合本平台学习背景、用户提供的上下文、题目与学习目标。每次回答都必须先说明你参考了哪些本平台学习背景，再给出分析或建议。不要声称没有访问做题或提交记录的权限，不要提及平台外数据，也不要编造未提供的记录；如果背景不足，只能说明“根据目前本平台内可见的学习情况”并据此给出建议。支持 Markdown 和数学公式输出。";
+
+    const learningBackground = buildLearningBackground({
+      name: user.name,
+      aiWeeklySummary: user.aiWeeklySummary ?? null,
+      submissions: user.submissions,
+    });
 
     const messages: ChatMessage[] = [
       { role: "system", content: systemPrompt },
+      {
+        role: "system",
+        content:
+          "以下是该用户在本平台内可见的学习背景，仅用于回答当前问题，不要逐字复述：\n\n" +
+          learningBackground,
+      },
       ...(context
         ? [
             {

@@ -11,6 +11,7 @@ export type LearningRoutePoint = {
   refId: string | null;
   targetDate: string | null;
   status: LearningRoutePointStatus;
+  manualStatus: LearningRoutePointStatus | null;
   sortOrder: number;
   linkHref?: string | null;
   linkLabel?: string | null;
@@ -41,11 +42,14 @@ export type LearningRoute = {
 
 export type LearningRouteTracking = {
   summary: string;
+  qualityScore: number;
+  studySummary: string;
   analysis: string[];
   suggestions: Array<{
     title: string;
     reason: string;
   }>;
+  nextRoutePrompt: string;
   snippets: Array<{
     problemTitle: string;
     status: string;

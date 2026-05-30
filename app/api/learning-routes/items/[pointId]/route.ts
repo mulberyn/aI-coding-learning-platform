@@ -26,11 +26,13 @@ export async function PATCH(
     const { pointId } = await context.params;
     const body = await request.json();
     const nextStatus = normalizeStatus(body?.status);
+    const isManualUpdate = body?.manual === true;
 
     const detail = await updateLearningRoutePoint({
       userId,
       pointId,
       status: nextStatus,
+      manualStatus: isManualUpdate ? (nextStatus ?? null) : undefined,
       title: typeof body?.title === "string" ? body.title.trim() : undefined,
       description:
         typeof body?.description === "string"
@@ -49,7 +51,7 @@ export async function PATCH(
     }
 
     const refreshedDetail =
-      nextStatus === "done"
+      isManualUpdate || nextStatus === "done"
         ? ((await refreshLearningRouteTrackingForRoute({
             userId,
             routeId: detail.route.id,

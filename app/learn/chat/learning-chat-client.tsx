@@ -63,38 +63,41 @@ const DEFAULT_CONVERSATION_TITLE = "新建对话";
 const PRESET_OPTIONS: PresetOption[] = [
   {
     title: "我在学习过程中遇到了哪些薄弱点？",
-    detail: "分析当前做题、提交与学习行为中的短板。",
-    prompt: "请基于我的做题与提交记录，分析我当前的薄弱点。",
+    detail: "结合本平台学习概览分析当前短板。",
+    prompt: "请结合我在本平台内的学习概览，分析我当前的薄弱点。",
     icon: Lightbulb,
   },
   {
     title: "我应该优先学习哪些知识点？",
-    detail: "给出适合当前阶段的优先学习清单。",
-    prompt: "请给出一个优先级清晰的学习建议列表。",
+    detail: "结合平台内学习情况给出优先级清单。",
+    prompt: "请结合我在本平台内的学习概览，给出一个优先级清晰的学习建议列表。",
     icon: BookOpen,
   },
   {
     title: "我有哪些题目是错的？",
-    detail: "回顾近期错题并总结常见原因。",
-    prompt: "请帮助我回顾近期做错的题目并总结原因。",
+    detail: "结合平台内记录回顾近期错题。",
+    prompt: "请结合我在本平台内的学习概览，回顾近期做错的题目并总结原因。",
     icon: MessageSquareText,
   },
   {
     title: "信息教练 skill",
-    detail: "用信息教练 skill 诊断学习状态。",
-    prompt: "使用信息教练 skill，对当前学习状态进行诊断。",
+    detail: "结合平台学习概览诊断学习状态。",
+    prompt:
+      "使用信息教练 skill，结合我在本平台内的学习概览，对当前学习状态进行诊断。",
     icon: Sparkles,
   },
   {
     title: "求职辅导 skill",
-    detail: "结合简历与面试准备给出建议。",
-    prompt: "使用求职辅导 skill，给出简历与面试准备建议。",
+    detail: "结合平台内学习情况给出建议。",
+    prompt:
+      "使用求职辅导 skill，结合我在本平台内的学习概览，给出简历与面试准备建议。",
     icon: Bot,
   },
   {
     title: "学习规划 skill",
-    detail: "生成未来两周的学习安排。",
-    prompt: "使用学习规划 skill，制定未来两周的学习计划。",
+    detail: "结合平台内学习情况生成安排。",
+    prompt:
+      "使用学习规划 skill，结合我在本平台内的学习概览，制定未来两周的学习计划。",
     icon: FileText,
   },
 ];

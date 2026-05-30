@@ -3,6 +3,7 @@ import type { Route } from "next";
 export const appRoutes = [
   { href: "/" as Route, label: "首页" },
   { href: "/problems" as Route, label: "题库" },
+  { href: "/videos" as Route, label: "视频" },
   {
     href: "/analytics" as Route,
     label: "学习",

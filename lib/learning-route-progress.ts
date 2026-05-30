@@ -33,8 +33,28 @@ export function getLearningRouteProgress(
     (point) => point.status === "done",
   ).length;
 
-  const completedPoints =
-    solvedProblems + finishedContests + finishedForums + finishedCustom;
+  const completedPoints = detail.points.filter((point) => {
+    if (point.manualStatus === "done") {
+      return true;
+    }
+
+    if (
+      point.manualStatus === "pending" ||
+      point.manualStatus === "in_progress"
+    ) {
+      return false;
+    }
+
+    if (point.pointType === "problem") {
+      return point.problemAttemptState === "SOLVED";
+    }
+
+    if (point.pointType === "contest") {
+      return Boolean(point.contestRegistered && point.contestScore !== null);
+    }
+
+    return point.status === "done";
+  }).length;
   const totalPoints = detail.points.length;
 
   return {

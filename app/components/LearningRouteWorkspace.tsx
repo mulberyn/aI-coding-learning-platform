@@ -65,7 +65,62 @@ function pointTypeLabel(type: LearningRoutePoint["pointType"]) {
   return "学习";
 }
 
+function getManualOverrideState(point: LearningRoutePoint) {
+  return point.manualStatus;
+}
+
+function isPointCompleted(point: LearningRoutePoint) {
+  const manualState = getManualOverrideState(point);
+
+  if (manualState === "done") {
+    return true;
+  }
+
+  if (manualState === "pending" || manualState === "in_progress") {
+    return false;
+  }
+
+  if (point.pointType === "problem") {
+    return point.problemAttemptState === "SOLVED";
+  }
+
+  if (point.pointType === "contest") {
+    return Boolean(point.contestRegistered && point.contestScore !== null);
+  }
+
+  return point.status === "done";
+}
+
 function getPointStateBadge(point: LearningRoutePoint) {
+  const manualState = getManualOverrideState(point);
+
+  if (manualState === "done") {
+    return {
+      text: "已完成",
+      className:
+        "border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+      icon: CheckCircle2,
+    };
+  }
+
+  if (manualState === "in_progress") {
+    return {
+      text: "进行中",
+      className:
+        "border-amber-500/25 bg-amber-500/10 text-amber-700 dark:text-amber-300",
+      icon: MinusCircle,
+    };
+  }
+
+  if (manualState === "pending") {
+    return {
+      text: "未开始",
+      className:
+        "border-zinc-400/25 bg-zinc-500/10 text-zinc-700 dark:text-zinc-300",
+      icon: MinusCircle,
+    };
+  }
+
   if (point.pointType === "problem") {
     if (point.problemAttemptState === "SOLVED") {
       return {
@@ -172,6 +227,36 @@ export function LearningRouteWorkspace({
   const routeProgress = useMemo(
     () => getLearningRouteProgress(detail),
     [detail],
+  );
+
+  const patchLocalPointState = useCallback(
+    (
+      pointId: string,
+      nextState: LearningRoutePoint["status"],
+      manualStatus: LearningRoutePoint["status"] | null,
+    ) => {
+      setDetail((current) => {
+        if (!current) {
+          return current;
+        }
+
+        return {
+          route: {
+            ...current.route,
+          },
+          points: current.points.map((point) =>
+            point.id === pointId
+              ? {
+                  ...point,
+                  status: nextState,
+                  manualStatus,
+                }
+              : point,
+          ),
+        };
+      });
+    },
+    [],
   );
 
   const reloadList = useCallback(async (expectSelectId?: string | null) => {
@@ -330,7 +415,7 @@ export function LearningRouteWorkspace({
   };
 
   const toggleForumPointStatus = async (point: LearningRoutePoint) => {
-    const nextStatus = point.status === "done" ? "pending" : "done";
+    const nextStatus = isPointCompleted(point) ? "pending" : "done";
     await updatePointStatus(point.id, nextStatus);
   };
 
@@ -361,14 +446,23 @@ export function LearningRouteWorkspace({
   const updatePointStatus = async (
     pointId: string,
     status: LearningRoutePoint["status"],
+    manual = true,
   ) => {
     setMessage(null);
+
+    const previousDetail = detail;
+
+    if (manual) {
+      patchLocalPointState(pointId, status, status);
+    } else {
+      patchLocalPointState(pointId, status, null);
+    }
 
     try {
       const response = await fetch(`/api/learning-routes/items/${pointId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({ status, manual }),
       });
 
       const payload = (await response.json()) as {
@@ -386,6 +480,9 @@ export function LearningRouteWorkspace({
         ),
       );
     } catch {
+      if (previousDetail) {
+        setDetail(previousDetail);
+      }
       setMessage("学习点状态更新失败，请稍后重试。");
     }
   };
@@ -598,42 +695,44 @@ export function LearningRouteWorkspace({
                       </p>
                     ) : null}
 
-                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <div className="mt-3 flex flex-wrap items-end justify-between gap-3">
                       <span className="rounded-full border border-ui bg-panel px-2 py-1 text-xs text-muted">
                         {pointTypeLabel(point.pointType)}
                       </span>
-                      {point.pointType === "forum" ||
-                      point.pointType === "custom" ? (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              updatePointStatus(point.id, "pending")
-                            }
-                            className="rounded-sm border border-ui bg-panel px-2.5 py-1 text-xs transition hover:bg-panel-strong"
-                          >
-                            设为未开始
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              updatePointStatus(point.id, "in_progress")
-                            }
-                            className="rounded-sm border border-ui bg-panel px-2.5 py-1 text-xs transition hover:bg-panel-strong"
-                          >
-                            进行中
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => toggleForumPointStatus(point)}
-                            className="rounded-sm bg-emerald-500/15 px-2.5 py-1 text-xs text-emerald-700 transition hover:bg-emerald-500/25 dark:text-emerald-300"
-                          >
-                            {point.status === "done"
-                              ? "取消完成"
-                              : "标记已完成"}
-                          </button>
-                        </>
-                      ) : null}
+
+                      <div className="flex flex-wrap items-center justify-end gap-2">
+                        {point.pointType === "forum" ||
+                        point.pointType === "custom" ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                updatePointStatus(point.id, "pending")
+                              }
+                              className="rounded-sm border border-ui bg-panel px-2.5 py-1 text-xs transition hover:bg-panel-strong"
+                            >
+                              设为未开始
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                updatePointStatus(point.id, "in_progress")
+                              }
+                              className="rounded-sm border border-ui bg-panel px-2.5 py-1 text-xs transition hover:bg-panel-strong"
+                            >
+                              进行中
+                            </button>
+                          </>
+                        ) : null}
+
+                        <button
+                          type="button"
+                          onClick={() => toggleForumPointStatus(point)}
+                          className="rounded-sm bg-emerald-500/15 px-2.5 py-1 text-xs text-emerald-700 transition hover:bg-emerald-500/25 dark:text-emerald-300"
+                        >
+                          {isPointCompleted(point) ? "取消完成" : "标记已完成"}
+                        </button>
+                      </div>
                     </div>
                   </article>
                 ))}

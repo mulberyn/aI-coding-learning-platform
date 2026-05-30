@@ -47,8 +47,11 @@ type SubmissionRow = {
 
 type TrackingJson = {
   summary?: unknown;
+  qualityScore?: unknown;
+  studySummary?: unknown;
   analysis?: unknown;
   suggestions?: unknown;
+  nextRoutePrompt?: unknown;
 };
 
 function getProviderEndpoint(provider: string) {
@@ -179,11 +182,12 @@ function buildCompletionSignature(
         .map((point) => {
           const refId = point.refId ?? "none";
           const state =
-            point.pointType === "problem"
+            point.manualStatus ??
+            (point.pointType === "problem"
               ? (point.problemAttemptState ?? point.status)
               : point.pointType === "contest"
                 ? `${point.contestRegistered ? "registered" : "unregistered"}-${point.contestScore ?? "none"}`
-                : point.status;
+                : point.status);
           return `${point.id}:${refId}:${state}`;
         })
         .join("|")
@@ -286,11 +290,17 @@ async function buildTrackingEvidence(params: {
   const pointSummaryLines = detail.points.map((point) => {
     const refText = point.refId ? `（${point.refId}）` : "";
     const stateText =
-      point.pointType === "problem"
-        ? `题目状态 ${point.problemAttemptState ?? "UNTRIED"}`
-        : point.pointType === "contest"
-          ? `比赛状态 ${point.contestRegistered ? "已参与" : "未参与"}${point.contestScore !== null ? `，得分 ${point.contestScore}` : ""}`
-          : `路线状态 ${point.status}`;
+      point.manualStatus === "done"
+        ? "手动状态 已完成"
+        : point.manualStatus === "in_progress"
+          ? "手动状态 进行中"
+          : point.manualStatus === "pending"
+            ? "手动状态 未开始"
+            : point.pointType === "problem"
+              ? `题目状态 ${point.problemAttemptState ?? "UNTRIED"}`
+              : point.pointType === "contest"
+                ? `比赛状态 ${point.contestRegistered ? "已参与" : "未参与"}${point.contestScore !== null ? `，得分 ${point.contestScore}` : ""}`
+                : `路线状态 ${point.status}`;
 
     return `${point.title}${refText}｜${stateText}`;
   });
@@ -337,11 +347,12 @@ function buildPromptContent(params: {
         `- 样本 ${index + 1}｜${snippet.problemTitle}｜${snippet.status}｜${snippet.createdAt}\n${snippet.code}`,
     ),
     "请仅输出严格 JSON，不要输出 Markdown、解释或代码块。JSON 结构如下：",
-    '{"summary":"一句话总结当前学习状态","analysis":["要点1","要点2","要点3"],"suggestions":[{"title":"建议标题","reason":"建议原因"}]}',
+    '"summary":"一句话总结当前学习状态","qualityScore":90,"studySummary":"一段学习总结","analysis":["要点1","要点2","要点3"],"suggestions":[{"title":"建议标题","reason":"建议原因"}],"nextRoutePrompt":"可编辑的下一条学习路径提示词"',
     "要求：",
     "1. 必须结合学习路线进度、题目完成情况、最近提交代码片段和完成时间来判断。",
     "2. 不要编造不存在的完成记录，只能基于给定信息输出。",
     "3. 建议必须具体可执行，优先对应当前未完成的学习点。",
+    "4. 如果路线已经完成，请给出学习质量评分（0-100）、学习总结和下一条学习路径提示词。",
   ].join("\n");
 }
 
@@ -363,6 +374,9 @@ function buildFallbackTracking(params: {
 
   return {
     summary: `${routeName} 当前已完成 ${evidence.progressSummary || "部分学习点"}。`,
+    qualityScore: 78,
+    studySummary:
+      "已完成路线的关键学习点，当前更适合进入下一轮围绕薄弱点的强化练习。",
     analysis: [
       evidence.progressSummary || "路线进度正在积累中。",
       evidence.latestCompletionText,
@@ -379,6 +393,8 @@ function buildFallbackTracking(params: {
               reason: "把注意力集中在最近的未完成题目、比赛或讨论任务上。",
             },
           ],
+    nextRoutePrompt:
+      "请根据当前路线的学习结果，为我生成一条更偏向薄弱模块强化的新学习路线，包含题目、比赛和总结复盘节点。",
   };
 }
 
@@ -398,8 +414,11 @@ export async function regenerateLearningRouteTracking(params: {
 
   let trackingPayload: {
     summary: string;
+    qualityScore: number;
+    studySummary: string;
     analysis: string[];
     suggestions: Array<{ title: string; reason: string }>;
+    nextRoutePrompt: string;
   };
 
   if (!config) {
@@ -427,6 +446,15 @@ export async function regenerateLearningRouteTracking(params: {
       typeof parsed?.summary === "string" && parsed.summary.trim().length > 0
         ? parsed.summary.trim().slice(0, 240)
         : "当前学习状态已更新。";
+    const qualityScore =
+      typeof parsed?.qualityScore === "number"
+        ? Math.max(0, Math.min(100, Math.round(parsed.qualityScore)))
+        : 80;
+    const studySummary =
+      typeof parsed?.studySummary === "string" &&
+      parsed.studySummary.trim().length > 0
+        ? parsed.studySummary.trim().slice(0, 360)
+        : "当前学习情况已整理完成。";
     const analysis = Array.isArray(parsed?.analysis)
       ? parsed.analysis
           .filter((item): item is string => typeof item === "string")
@@ -467,6 +495,8 @@ export async function regenerateLearningRouteTracking(params: {
 
     trackingPayload = {
       summary,
+      qualityScore,
+      studySummary,
       analysis:
         analysis.length > 0
           ? analysis
@@ -480,12 +510,20 @@ export async function regenerateLearningRouteTracking(params: {
                 reason: "优先推进路线中的未完成题目、比赛或讨论任务。",
               },
             ],
+      nextRoutePrompt:
+        typeof parsed?.nextRoutePrompt === "string" &&
+        parsed.nextRoutePrompt.trim().length > 0
+          ? parsed.nextRoutePrompt.trim().slice(0, 500)
+          : `请根据当前已完成的学习路线 ${routeName}，生成一条新的可编辑学习路径。`,
     };
   }
 
   await upsertLearningRouteTracking({
     routeId,
     summary: trackingPayload.summary,
+    qualityScore: trackingPayload.qualityScore,
+    studySummary: trackingPayload.studySummary,
+    nextRoutePrompt: trackingPayload.nextRoutePrompt,
     analysis: trackingPayload.analysis,
     suggestions: trackingPayload.suggestions,
     snippets: evidence.snippets,
