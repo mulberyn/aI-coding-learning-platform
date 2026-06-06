@@ -1504,3 +1504,34 @@ import "katex/dist/katex.min.css";
 ## 总结
 
 ###
+
+```ts
+// 过滤候选，先保证相关性
+const candidates = prefilterVideoCandidates(
+  await fetchSearchCandidates(parsed.data.query),
+  parsed.data.query,
+);
+
+// 兜底结果：LLM 失败也可返回
+let selectedItems = buildFallbackSelection(candidates, parsed.data.query);
+
+try {
+  // LLM 重排 + 只取前三
+  const selectedIds = await rankVideosWithLLM({
+    provider,
+    model,
+    apiKey,
+    query: parsed.data.query,
+    candidates,
+  });
+  if (selectedIds.length) {
+    selectedItems = mergeSelectedWithFallback(
+      selectedIds,
+      candidates,
+      parsed.data.query,
+    );
+  }
+} catch {}
+
+return NextResponse.json({ items: selectedItems.slice(0, 3) });
+```

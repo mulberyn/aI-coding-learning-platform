@@ -1,5 +1,7 @@
 # 用户信息
 
+说明：下方 Mermaid ER 图保留连接符号以保证渲染，但关系含义已统一用 1:N 标识。
+
 ```mermaid
 erDiagram
 	USER {
@@ -50,15 +52,15 @@ erDiagram
 		string problemId FK
 	}
 
-	USER ||--o{ API_KEY_CONFIG : 拥有
-	USER ||--o{ SUBMISSION : 提交
-	USER ||--o{ CONTEST_REGISTRATION : 报名
-	USER ||--o{ FORUM_POST : 发布
-	USER ||--o{ FORUM_COMMENT : 评论
-	USER ||--o{ AI_CONVERSATION : 发起
-	USER ||--o{ AI_TUTORING : 接收
-	SUBMISSION ||--o{ AI_TUTORING : 被分析
-	FORUM_POST ||--o{ FORUM_COMMENT : 包含
+	USER ||--o{ API_KEY_CONFIG : "1:N"
+	USER ||--o{ SUBMISSION : "1:N"
+	USER ||--o{ CONTEST_REGISTRATION : "1:N"
+	USER ||--o{ FORUM_POST : "1:N"
+	USER ||--o{ FORUM_COMMENT : "1:N"
+	USER ||--o{ AI_CONVERSATION : "1:N"
+	USER ||--o{ AI_TUTORING : "1:N"
+	SUBMISSION ||--o{ AI_TUTORING : "1:N"
+	FORUM_POST ||--o{ FORUM_COMMENT : "1:N"
 ```
 
 # AI辅导和学习路线
@@ -109,14 +111,14 @@ erDiagram
 		string problemId FK
 	}
 
-	USER ||--o{ LEARNING_ROUTE : 拥有
-	LEARNING_ROUTE ||--o{ LEARNING_ROUTE_POINT : 包含
-	USER ||--o{ SUBMISSION : 提交
-	USER ||--o{ AI_CONVERSATION : 对话
-	USER ||--o{ AI_TUTORING : 辅导
-	PROBLEM ||--o{ SUBMISSION : 练习
-	PROBLEM ||--o{ AI_TUTORING : 讲解
-	SUBMISSION ||--o{ AI_TUTORING : 分析
+	USER ||--o{ LEARNING_ROUTE : "1:N"
+	LEARNING_ROUTE ||--o{ LEARNING_ROUTE_POINT : "1:N"
+	USER ||--o{ SUBMISSION : "1:N"
+	USER ||--o{ AI_CONVERSATION : "1:N"
+	USER ||--o{ AI_TUTORING : "1:N"
+	PROBLEM ||--o{ SUBMISSION : "1:N"
+	PROBLEM ||--o{ AI_TUTORING : "1:N"
+	SUBMISSION ||--o{ AI_TUTORING : "1:N"
 ```
 
 # 题库
@@ -159,13 +161,13 @@ erDiagram
 		string problemId FK
 	}
 
-	PROBLEM ||--o{ EXAMPLE : 包含
-	PROBLEM ||--o{ TEST_CASE : 包含
-	PROBLEM ||--o{ SUBMISSION : 接收
-	PROBLEM ||--o{ AI_TUTORING : 讲解
-	SUBMISSION ||--o{ JUDGE_RESULT : 生成
-	TEST_CASE ||--o{ JUDGE_RESULT : 判定
-	SUBMISSION ||--o{ AI_TUTORING : 分析
+	PROBLEM ||--o{ EXAMPLE : "1:N"
+	PROBLEM ||--o{ TEST_CASE : "1:N"
+	PROBLEM ||--o{ SUBMISSION : "1:N"
+	PROBLEM ||--o{ AI_TUTORING : "1:N"
+	SUBMISSION ||--o{ JUDGE_RESULT : "1:N"
+	TEST_CASE ||--o{ JUDGE_RESULT : "1:N"
+	SUBMISSION ||--o{ AI_TUTORING : "1:N"
 ```
 
 # 比赛和论坛
@@ -220,15 +222,15 @@ erDiagram
 		string title
 	}
 
-	CONTEST ||--o{ CONTEST_PROBLEM : 包含
-	CONTEST ||--o{ CONTEST_RANKING : 排名
-	CONTEST ||--o{ CONTEST_REGISTRATION : 报名
-	USER ||--o{ CONTEST_REGISTRATION : 参加
-	USER ||--o{ FORUM_POST : 发布
-	USER ||--o{ FORUM_COMMENT : 评论
-	PROBLEM ||--o{ CONTEST_PROBLEM : 出现于
-	PROBLEM ||--o{ FORUM_POST : 讨论于
-	FORUM_POST ||--o{ FORUM_COMMENT : 包含
+	CONTEST ||--o{ CONTEST_PROBLEM : "1:N"
+	CONTEST ||--o{ CONTEST_RANKING : "1:N"
+	CONTEST ||--o{ CONTEST_REGISTRATION : "1:N"
+	USER ||--o{ CONTEST_REGISTRATION : "1:N"
+	USER ||--o{ FORUM_POST : "1:N"
+	USER ||--o{ FORUM_COMMENT : "1:N"
+	PROBLEM ||--o{ CONTEST_PROBLEM : "1:N"
+	PROBLEM ||--o{ FORUM_POST : "1:N"
+	FORUM_POST ||--o{ FORUM_COMMENT : "1:N"
 ```
 
 用户信息设计说明
